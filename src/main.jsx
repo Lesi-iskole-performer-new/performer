@@ -219,12 +219,22 @@ function mergeSavedState(saved) {
     : starter.members;
   const memberKey = value => String(value || "").trim().toLowerCase();
   const isShalaniKey = value => ["shalani", "shalni"].includes(memberKey(value));
+  const isChamodiMemberId = value =>
+    ["chamodi", "chamodinew"].includes(memberKey(value));
+  const isChamodiHansikaId = value => memberKey(value) === "chamodi";
   const usesFixedMemberImage = value =>
-    isShalaniKey(value) || memberKey(value) === "chamodi";
+    isShalaniKey(value) || isChamodiHansikaId(value);
   const matchesMember = (member, defaultMember) => {
     const memberId = memberKey(member?.id);
     const memberName = memberKey(member?.name);
     const defaultId = memberKey(defaultMember.id);
+
+    // Keep the original Chamodi and Chamodi Hansika as two separate people.
+    // Their names are similar, so only their unique IDs may match saved data.
+    if (isChamodiMemberId(defaultId)) {
+      return memberId === defaultId;
+    }
+
     return memberId === defaultId ||
       memberName === defaultId ||
       (isShalaniKey(defaultId) && (isShalaniKey(memberId) || isShalaniKey(memberName)));
@@ -236,8 +246,12 @@ function mergeSavedState(saved) {
     return {
       ...defaultMember,
       ...savedMember,
-      id: savedMember.id || defaultMember.id,
-      name: savedMember.name || defaultMember.name,
+      id: isChamodiMemberId(defaultMember.id)
+        ? defaultMember.id
+        : savedMember.id || defaultMember.id,
+      name: isChamodiHansikaId(defaultMember.id)
+        ? defaultMember.name
+        : savedMember.name || defaultMember.name,
       image: usesFixedMemberImage(defaultMember.id)
         ? defaultMember.image
         : savedMember.image || defaultMember.image
