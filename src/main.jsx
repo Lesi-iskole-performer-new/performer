@@ -72,7 +72,7 @@ const starter = {
     { id: "Chalani", name: "Chalani", image: `${ASSET}/members/Chalani.webp` },
     { id: "chamathka", name: "Chamathka", image: `${ASSET}/members/chamathka.webp` },
     { id: "Chamodinew", name: "Chamodi", image: `${ASSET}/members/Chamodinew.webp` },
-    { id: "Chamodi", name: "Chamodi Hansika", image: `${ASSET}/members/Chamodi.png` },
+    { id: "ChamodiHansika", name: "Chamodi Hansika", image: `${ASSET}/members/Chamodi.webp` },
     { id: "Dulari", name: "Dulari", image: `${ASSET}/members/Dulari.webp` },
     { id: "kaveesha", name: "Kaveesha", image: `${ASSET}/members/kaveesha.webp` },
     { id: "Kavindya", name: "Kavindya", image: `${ASSET}/members/Kavindya.webp` },
@@ -219,9 +219,13 @@ function mergeSavedState(saved) {
     : starter.members;
   const memberKey = value => String(value || "").trim().toLowerCase();
   const isShalaniKey = value => ["shalani", "shalni"].includes(memberKey(value));
+  const isOriginalChamodiId = value => memberKey(value) === "chamodinew";
+  const isChamodiHansikaId = value => memberKey(value) === "chamodihansika";
+  const isLegacyChamodiId = value => memberKey(value) === "chamodi";
+  const isChamodiHansikaName = value =>
+    ["chamodi hansika", "chamodi hansaika", "chamodi hansike"].includes(memberKey(value));
   const isChamodiMemberId = value =>
-    ["chamodi", "chamodinew"].includes(memberKey(value));
-  const isChamodiHansikaId = value => memberKey(value) === "chamodi";
+    isOriginalChamodiId(value) || isChamodiHansikaId(value);
   const usesFixedMemberImage = value =>
     isShalaniKey(value) || isChamodiHansikaId(value);
   const matchesMember = (member, defaultMember) => {
@@ -229,15 +233,30 @@ function mergeSavedState(saved) {
     const memberName = memberKey(member?.name);
     const defaultId = memberKey(defaultMember.id);
 
-    // Keep the original Chamodi and Chamodi Hansika as two separate people.
-    // Their names are similar, so only their unique IDs may match saved data.
-    if (isChamodiMemberId(defaultId)) {
-      return memberId === defaultId;
+    // Keep the original Chamodi and Chamodi Hansika as two separate people,
+    // while safely migrating the older shared "Chamodi" ID.
+    if (isOriginalChamodiId(defaultId)) {
+      return memberId === defaultId ||
+        (isLegacyChamodiId(memberId) && !isChamodiHansikaName(memberName));
+    }
+    if (isChamodiHansikaId(defaultId)) {
+      return memberId === defaultId ||
+        (isLegacyChamodiId(memberId) && isChamodiHansikaName(memberName));
     }
 
     return memberId === defaultId ||
       memberName === defaultId ||
       (isShalaniKey(defaultId) && (isShalaniKey(memberId) || isShalaniKey(memberName)));
+  };
+  const resolveLegacyChamodiId = value => {
+    if (!isLegacyChamodiId(value)) return value;
+
+    const legacyHansikaMember = savedMembers.find(member =>
+      isLegacyChamodiId(member?.id) && isChamodiHansikaName(member?.name)
+    );
+    return legacyHansikaMember
+      ? "ChamodiHansika"
+      : "Chamodinew";
   };
   const members = starter.members.map(defaultMember => {
     const savedMember = savedMembers.find(member => matchesMember(member, defaultMember));
@@ -268,7 +287,8 @@ function mergeSavedState(saved) {
     const source = Array.isArray(list) ? list : fallbackList;
     const fixed = [];
 
-    source.forEach(id => {
+    source.forEach(rawId => {
+      const id = resolveLegacyChamodiId(rawId);
       let resolvedId = null;
       if (validIds.has(id)) resolvedId = id;
       const match = members.find(member => member.id.toLowerCase() === String(id).toLowerCase());
@@ -324,7 +344,10 @@ function mergeSavedState(saved) {
   const cleanCounts = (key, list) => {
     const savedCounts = saved.slideCounts?.[key] || {};
     return list.reduce((result, id) => {
-      const savedValue = savedCounts[id];
+      const matchingSavedCount = Object.entries(savedCounts).find(([savedId]) =>
+        memberKey(resolveLegacyChamodiId(savedId)) === memberKey(id)
+      );
+      const savedValue = savedCounts[id] ?? matchingSavedCount?.[1];
       if (savedValue !== undefined && savedValue !== null && savedValue !== "") {
         result[id] = Number(savedValue);
         return result;
@@ -388,8 +411,12 @@ function Portrait({ member }) {
   const [imageIndex, setImageIndex] = useState(0);
   const memberKey = String(member?.id || member?.name || "").trim().toLowerCase();
   const isShalani = memberKey === "shalani" || memberKey === "shalni";
-  const isChamodiHansika = memberKey === "chamodi";
+  const isChamodiHansika = memberKey === "chamodihansika";
   const imageSources = [
+    ...(isChamodiHansika ? [
+      `${ASSET}/members/Chamodi.webp`,
+      `${ASSET}/members/Chamodi.webp?v=chamodi-hansika`
+    ] : []),
     member?.image,
     ...(isShalani ? [
       `${ASSET}/members/Shalani.webp`,
@@ -398,6 +425,8 @@ function Portrait({ member }) {
       `${ASSET}/members/shalni.webp`
     ] : []),
     ...(isChamodiHansika ? [
+      `${ASSET}/members/Chamodi.webp`,
+      `${ASSET}/members/chamodi.webp`,
       `${ASSET}/members/Chamodi.png`,
       `${ASSET}/members/chamodi.png`,
       `${ASSET}/members/Chamodi Hansika.png`,
