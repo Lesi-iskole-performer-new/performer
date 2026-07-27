@@ -1543,7 +1543,7 @@ function App() {
     {mode === "edit" && <SlideRail index={index} onSelect={select}/>}
     <div className="workspace">
       {mode === "edit" && <header className="topbar">
-        <div className="project-title"><Brand small/><div><small>LEසි ඉස්කෝලේ</small><b>Achievers Show</b></div></div>
+        <div className="project-title"><Brand small/><div><b>Achievers Show</b></div></div>
         <div className="top-actions">
           <button className={`sound-toggle ${muted ? "is-muted" : "is-on"}`} onClick={toggleMute}>
             {muted ? <VolumeX size={16}/> : <Volume2 size={16}/>}
