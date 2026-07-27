@@ -417,7 +417,6 @@ function RankCard({ member, count, rank, kind = "standard", onReveal }) {
     <div className="medal" aria-label={`Rank ${rank}`}><span>{rank}</span></div>
     <div className="portrait-ring">
       <Portrait member={member} />
-      {rank === 1 && <div className="crown" aria-hidden><span>♛</span></div>}
     </div>
     {isPlatinum && <div className="platinum-badge"><span>PLATINUM</span><b>MEMBER</b></div>}
     <div className="ribbon">{place.label}</div>
