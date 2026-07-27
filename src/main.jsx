@@ -72,6 +72,7 @@ const starter = {
     { id: "Chalani", name: "Chalani", image: `${ASSET}/members/Chalani.webp` },
     { id: "chamathka", name: "Chamathka", image: `${ASSET}/members/chamathka.webp` },
     { id: "Chamodinew", name: "Chamodi", image: `${ASSET}/members/Chamodinew.webp` },
+    { id: "Chamodi", name: "Chamodi Hansika", image: `${ASSET}/members/Chamodi.png` },
     { id: "Dulari", name: "Dulari", image: `${ASSET}/members/Dulari.webp` },
     { id: "kaveesha", name: "Kaveesha", image: `${ASSET}/members/kaveesha.webp` },
     { id: "Kavindya", name: "Kavindya", image: `${ASSET}/members/Kavindya.webp` },
@@ -218,6 +219,8 @@ function mergeSavedState(saved) {
     : starter.members;
   const memberKey = value => String(value || "").trim().toLowerCase();
   const isShalaniKey = value => ["shalani", "shalni"].includes(memberKey(value));
+  const usesFixedMemberImage = value =>
+    isShalaniKey(value) || memberKey(value) === "chamodi";
   const matchesMember = (member, defaultMember) => {
     const memberId = memberKey(member?.id);
     const memberName = memberKey(member?.name);
@@ -235,7 +238,7 @@ function mergeSavedState(saved) {
       ...savedMember,
       id: savedMember.id || defaultMember.id,
       name: savedMember.name || defaultMember.name,
-      image: isShalaniKey(defaultMember.id)
+      image: usesFixedMemberImage(defaultMember.id)
         ? defaultMember.image
         : savedMember.image || defaultMember.image
     };
@@ -371,6 +374,7 @@ function Portrait({ member }) {
   const [imageIndex, setImageIndex] = useState(0);
   const memberKey = String(member?.id || member?.name || "").trim().toLowerCase();
   const isShalani = memberKey === "shalani" || memberKey === "shalni";
+  const isChamodiHansika = memberKey === "chamodi";
   const imageSources = [
     member?.image,
     ...(isShalani ? [
@@ -378,6 +382,14 @@ function Portrait({ member }) {
       `${ASSET}/members/shalani.webp`,
       `${ASSET}/members/Shalni.webp`,
       `${ASSET}/members/shalni.webp`
+    ] : []),
+    ...(isChamodiHansika ? [
+      `${ASSET}/members/Chamodi.png`,
+      `${ASSET}/members/chamodi.png`,
+      `${ASSET}/members/Chamodi Hansika.png`,
+      `${ASSET}/members/Chamodi Hansike.png`,
+      `${ASSET}/members/chamodi hansika.png`,
+      `${ASSET}/members/chamodi hansike.png`
     ] : [])
   ].filter((source, index, sources) => source && sources.indexOf(source) === index);
 
