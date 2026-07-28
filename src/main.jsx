@@ -9,6 +9,7 @@ import "./styles.css";
 const ASSET = "/assets";
 const INTRO_SOUND = `${ASSET}/sounds/Achivers.mp3`;
 const MONTHLY_SOUND = `${ASSET}/sounds/Monthlyperformerce.mp3`;
+const WEEKLY_SOUND = `${ASSET}/sounds/Weeklyperfrmer.mp3`;
 const TRAVEL_SOUND = `${ASSET}/sounds/Travel.mp3`;
 const TRAVEL_CARD_SOUND = `${ASSET}/sounds/travelcard.mp3`;
 const BATTLE_SOUND = `${ASSET}/sounds/Battle.mp3`;
@@ -21,13 +22,18 @@ const DANGER_ZONE_SOUND = `${ASSET}/sounds/dangerzone.mp3`;
 const SILVER_ZONE_SOUND = `${ASSET}/sounds/silverzone.mp3`;
 const GOLD_ZONE_SOUND = `${ASSET}/sounds/goldzone.mp3`;
 const MEGA_ZONE_SOUND = `${ASSET}/sounds/megajackpot.mp3`;
+const MISSION_CARD_SOUND = `${ASSET}/sounds/cardelectric.mp3`;
 const CELEBRATE_SOUND = `${ASSET}/sounds/celebrate.mp3`;
 const DEFAULT_SLIDE_DURATION_MS = 8000;
 const SLOW_PERFORMER_SLIDE_DURATION_MS = 18000;
+const SIX_MONTH_SLIDE_DURATION_MS = 31000;
+const SIX_MONTH_SPOTLIGHT_SOUND_DELAYS_MS = [9650, 14850, 20050];
 const WEEKLY_CARD_SEQUENCE_MS = 1000 + (5 * 1400) + 2050;
 const WEEKLY_FINAL_HOLD_MS = 8000;
 const WEEKLY_PERFORMER_SLIDE_DURATION_MS = WEEKLY_CARD_SEQUENCE_MS + WEEKLY_FINAL_HOLD_MS;
-const MISSION_ANIMATION_DURATION_MS = 5200;
+const MISSION_BACKGROUND_SOUND_DELAY_MS = 900;
+const MISSION_CARD_REVEAL_MS = 3450;
+const MISSION_ANIMATION_DURATION_MS = 5600;
 const MISSION_FINAL_HOLD_MS = 10000;
 const SLOW_BATTLE_SLIDE_DURATION_MS = 13000;
 const COMMISSION_ROLL_DURATION_MS = 8000;
@@ -35,6 +41,7 @@ const COMMISSION_RESULT_HOLD_MS = 8000;
 const COMMISSION_AFTER_REVEAL_DURATION_MS = COMMISSION_ROLL_DURATION_MS + COMMISSION_RESULT_HOLD_MS;
 const LOCAL_STORAGE_KEY = "lesi-achievers-state";
 const MONTHS = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
+const WEEKS = ["1ST WEEK", "2ND WEEK", "3RD WEEK", "4TH WEEK", "5TH WEEK"];
 const digitSequence = Array.from({ length: 10 }, (_, index) => index);
 const zeroDigitSequence = [0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0];
 
@@ -61,11 +68,28 @@ const celebrationFireworks = [
 
 const fireworkAngles = Array.from({ length: 16 }, (_, index) => index * 22.5);
 
+const SLIDE = Object.freeze({
+  ACHIEVERS: 0,
+  WEEKLY: 1,
+  PRODUCTS: 2,
+  MONTHLY: 3,
+  SIX_MONTH: 4,
+  COMMISSION: 5,
+  MISSION: 6,
+  CONGRATULATIONS: 7
+});
+
 const slideNames = [
-  "Achievers", "Monthly Performers", "6th Month Performers",
-  "Battle of the Products", "Commission Update", "Mission Unlock",
-  "Weekly Performers", "Congratulations"
+  "Achievers", "Weekly Performers", "Battle of the Products",
+  "Monthly Performers", "6th Month Performers", "Commission Update",
+  "Mission Unlock", "Congratulations"
 ];
+
+const SOUND_MODES = Object.freeze({
+  OFF: "off",
+  REPEAT: "repeat",
+  ONCE: "once"
+});
 
 const starter = {
   members: [
@@ -108,8 +132,13 @@ const starter = {
   products: [
     { id: "primary-maths", name: "PRIMARY MATHS", count: 1800, image: `${ASSET}/products/primary-maths.webp` },
     { id: "english", name: "ENGLISH", count: 1490, image: `${ASSET}/products/english.webp` },
-    { id: "ol-mission-6", name: "O/L MISSION 6", count: 910, image: `${ASSET}/products/mission-6.webp` },
-    { id: "scholarship", name: "SCHOLARSHIP", count: 451, image: `${ASSET}/products/scholarship.webp` }
+    {
+      id: "ol-mission-6-scholarship",
+      name: "O/L MISSION 6 + SCHOLARSHIP",
+      count: 1361,
+      image: `${ASSET}/products/mission-6.webp`,
+      secondaryImage: `${ASSET}/products/scholarship.webp`
+    }
   ]
 };
 
@@ -127,10 +156,12 @@ const money = value => new Intl.NumberFormat("en-LK", {
 }).format(value);
 
 function zoneFor(sales) {
-  if (sales >= 10000) return { key: "mega", name: "MEGA JACKPOT", amount: 3000000, note: "10,000+ SALES ACHIEVED" };
-  if (sales >= 9000) return { key: "gold", name: "GOLD ZONE", amount: 2000000, note: "9,000–9,999 SALES ACHIEVED" };
-  if (sales >= 8000) return { key: "silver", name: "SILVER ZONE", amount: 1000000, note: "8,000–8,999 SALES ACHIEVED" };
-  return { key: "danger", name: "DANGER ZONE", amount: 0, note: `${8000 - sales} MORE SALES TO UNLOCK` };
+  const achievedSales = Math.max(0, Number(sales || 0));
+  const achievedNote = `${achievedSales.toLocaleString()} SALES ACHIEVED`;
+  if (achievedSales >= 10000) return { key: "mega", name: "MEGA JACKPOT", amount: 3000000, note: achievedNote };
+  if (achievedSales >= 7500) return { key: "gold", name: "GOLD ZONE", amount: 2000000, note: achievedNote };
+  if (achievedSales >= 6500) return { key: "silver", name: "SILVER ZONE", amount: 1000000, note: achievedNote };
+  return { key: "danger", name: "DANGER ZONE", amount: 0, note: achievedNote };
 }
 
 const isMissingCount = value => value === "" || value === null || value === undefined;
@@ -171,9 +202,9 @@ function validateRankedCounts({ values, expected, slideIndex, label }) {
 
 function validatePresentation(state) {
   const performerGroups = [
-    { key: "monthly", expected: 5, slideIndex: 1, label: "Monthly Performers" },
-    { key: "sixMonth", expected: 6, slideIndex: 2, label: "6th Month Performers" },
-    { key: "weekly", expected: 5, slideIndex: 6, label: "Weekly Performers" }
+    { key: "monthly", expected: 5, slideIndex: SLIDE.MONTHLY, label: "Monthly Performers" },
+    { key: "sixMonth", expected: 6, slideIndex: SLIDE.SIX_MONTH, label: "6th Month Performers" },
+    { key: "weekly", expected: 5, slideIndex: SLIDE.WEEKLY, label: "Weekly Performers" }
   ];
 
   for (const group of performerGroups) {
@@ -184,15 +215,15 @@ function validatePresentation(state) {
 
   const productProblem = validateRankedCounts({
     values: (state.products || []).map(product => product.count),
-    expected: 4,
-    slideIndex: 3,
+    expected: 3,
+    slideIndex: SLIDE.PRODUCTS,
     label: "Battle of the Products"
   });
   if (productProblem) return productProblem;
 
   if (isMissingCount(state.sales)) {
     return {
-      slideIndex: 4,
+      slideIndex: SLIDE.COMMISSION,
       title: "TOTAL SALES REQUIRED",
       message: "Commission Update: Please enter Total Sales. Then you can present the show."
     };
@@ -200,7 +231,7 @@ function validatePresentation(state) {
 
   if (!isValidCount(state.sales)) {
     return {
-      slideIndex: 4,
+      slideIndex: SLIDE.COMMISSION,
       title: "INVALID TOTAL SALES",
       message: "Commission Update: Please enter a valid whole number for Total Sales."
     };
@@ -316,30 +347,45 @@ function mergeSavedState(saved) {
         ? Math.max(0, Math.round(legacyCommission / 300))
         : starter.sales;
 
-  const savedProducts = Array.isArray(saved.products) && saved.products.length === 4
-    ? saved.products
-    : starter.products;
-  const mergedProducts = savedProducts.map((product, index) => {
-    const catalogProduct = starter.products.find(item =>
-      item.id === product?.id || item.name === product?.name
-    ) || starter.products[index];
-
+  const savedProducts = Array.isArray(saved.products) ? saved.products : [];
+  const findSavedProduct = (...ids) => savedProducts.find(product => ids.includes(product?.id));
+  const mergeFixedProduct = catalogProduct => {
+    const savedProduct = findSavedProduct(catalogProduct.id);
     return {
       ...catalogProduct,
-      ...product,
+      ...(savedProduct || {}),
       id: catalogProduct.id,
-      image: typeof product?.image === "string" && product.image
-        ? product.image
-        : catalogProduct.image
+      name: catalogProduct.name,
+      image: typeof savedProduct?.image === "string" && savedProduct.image
+        ? savedProduct.image
+        : catalogProduct.image,
+      secondaryImage: typeof savedProduct?.secondaryImage === "string" && savedProduct.secondaryImage
+        ? savedProduct.secondaryImage
+        : catalogProduct.secondaryImage
     };
-  });
-  const uniqueProducts = mergedProducts.reduce((result, product) => {
-    if (!result.some(item => item.id === product.id)) result.push(product);
-    return result;
-  }, []);
-  starter.products.forEach(product => {
-    if (!uniqueProducts.some(item => item.id === product.id)) uniqueProducts.push(product);
-  });
+  };
+  const savedCombo = findSavedProduct("ol-mission-6-scholarship");
+  const savedMission = findSavedProduct("ol-mission-6");
+  const savedScholarship = findSavedProduct("scholarship");
+  const comboCatalog = starter.products[2];
+  const comboCount = savedCombo?.count ?? (
+    savedMission || savedScholarship
+      ? Number(savedMission?.count || 0) + Number(savedScholarship?.count || 0)
+      : comboCatalog.count
+  );
+  const fixedProducts = [
+    mergeFixedProduct(starter.products[0]),
+    mergeFixedProduct(starter.products[1]),
+    {
+      ...comboCatalog,
+      ...(savedCombo || {}),
+      id: comboCatalog.id,
+      name: comboCatalog.name,
+      count: comboCount,
+      image: savedCombo?.image || savedMission?.image || comboCatalog.image,
+      secondaryImage: savedCombo?.secondaryImage || savedScholarship?.image || comboCatalog.secondaryImage
+    }
+  ];
 
   const cleanCounts = (key, list) => {
     const savedCounts = saved.slideCounts?.[key] || {};
@@ -374,7 +420,7 @@ function mergeSavedState(saved) {
       sixMonth: cleanCounts("sixMonth", sixMonth),
       weekly: cleanCounts("weekly", weekly)
     },
-    products: uniqueProducts.slice(0, 4)
+    products: fixedProducts
   };
 }
 
@@ -453,6 +499,17 @@ function Portrait({ member }) {
   />;
 }
 
+function StackedName({ name }) {
+  const parts = String(name || "ADD PERFORMER").trim().split(/\s+/).filter(Boolean);
+  const firstLine = parts[0] || "ADD";
+  const secondLine = parts.slice(1).join(" ");
+
+  return <span className={`stacked-name ${secondLine ? "has-second-line" : ""}`}>
+    <span>{firstLine}</span>
+    {secondLine && <span>{secondLine}</span>}
+  </span>;
+}
+
 function RankCard({ member, count, rank, kind = "standard", onReveal }) {
   const place = places[rank - 1];
   const numericCount = count === "" || count === undefined || count === null ? null : Number(count);
@@ -476,7 +533,7 @@ function RankCard({ member, count, rank, kind = "standard", onReveal }) {
     {isPlatinum && <div className="platinum-badge"><span>PLATINUM</span><b>MEMBER</b></div>}
     <div className="ribbon">{place.label}</div>
     <div className="performer-details">
-      <h2><span>{String(rank).padStart(2, "0")}.</span><em>{member?.name || "Add performer"}</em></h2>
+      <h2><span>{String(rank).padStart(2, "0")}.</span><em><StackedName name={member?.name}/></em></h2>
       <strong className="performer-sales-count">{numericCount === null ? "—" : numericCount.toLocaleString()}</strong>
     </div>
   </article>;
@@ -485,7 +542,7 @@ function RankCard({ member, count, rank, kind = "standard", onReveal }) {
 function FlightBoardCard({ member, count, rank }) {
   const priority = rank <= 3 ? "priority" : "standby";
   const numericCount = count === "" || count === undefined || count === null ? null : Number(count);
-  const revealOrder = rank - 1;
+  const revealOrder = 6 - rank;
 
   return <article
     className={`flight-board-card flight-rank-${rank} ${priority} reveal flight-card-reveal`}
@@ -494,10 +551,27 @@ function FlightBoardCard({ member, count, rank }) {
     <div className="flight-rank-badge" aria-label={`Rank ${rank}`}><span>{rank}</span></div>
     <div className="flight-photo"><Portrait member={member}/></div>
     <div className="flight-pass-data">
-      <h2>{member?.name || "ADD PERFORMER"}</h2>
+      <h2><StackedName name={member?.name}/></h2>
       <strong>{numericCount === null ? "—" : numericCount.toLocaleString()}</strong>
     </div>
     <div className="flight-ticket-edge" aria-hidden><span>✈</span></div>
+  </article>;
+}
+
+function FlightSpotlightCard({ member, count, rank, order }) {
+  const numericCount = count === "" || count === undefined || count === null ? null : Number(count);
+
+  return <article
+    className={`flight-spotlight-card flight-spotlight-rank-${rank}`}
+    style={{ "--spotlight-order": order }}
+  >
+    <div className="flight-spotlight-rank"><span>{rank}</span><b>{places[rank - 1].label}</b></div>
+    <div className="flight-spotlight-photo"><Portrait member={member}/></div>
+    <div className="flight-spotlight-copy">
+      <small>6TH MONTH PERFORMER</small>
+      <h2><StackedName name={member?.name}/></h2>
+      <strong>{numericCount === null ? "—" : numericCount.toLocaleString()} SALES</strong>
+    </div>
   </article>;
 }
 
@@ -520,6 +594,18 @@ function SixMonthFlightSlide({ state, list }) {
     </div>
     <div className="flight-board-grid">
       {performers.map(({ id, member, count }, cardIndex) => <FlightBoardCard member={member} count={count} rank={cardIndex + 1} key={`${id || "empty"}-${cardIndex}`}/>) }
+    </div>
+    <div className="flight-top-three-showcase" aria-label="Top three performer spotlight">
+      {[3, 2, 1].map((rank, order) => {
+        const performer = performers[rank - 1] || {};
+        return <FlightSpotlightCard
+          member={performer.member}
+          count={performer.count}
+          rank={rank}
+          order={order}
+          key={`spotlight-${rank}`}
+        />;
+      })}
     </div>
     <div className="flight-board-final reveal flight-final-reveal">
       <span>TOUR STATUS</span><b>PENDING BANGKOK TOUR • COMPETITION NOT FINISHED</b><i>✈</i>
@@ -562,9 +648,11 @@ function IntroSlide() {
 }
 
 function ProductCard({ product, rank, onReveal }) {
-  const revealOrder = 5 - rank;
+  const revealOrder = 3 - rank;
   const fallbackImage = starter.products.find(item => item.id === product.id)?.image
     || starter.products[rank - 1].image;
+  const isCombo = product.id === "ol-mission-6-scholarship";
+  const secondaryFallback = starter.products[2].secondaryImage;
 
   const handleRevealStart = event => {
     if (event.target !== event.currentTarget) return;
@@ -576,16 +664,38 @@ function ProductCard({ product, rank, onReveal }) {
     style={{ "--order": revealOrder }}
     onAnimationStart={handleRevealStart}
   >
-    <div className="product-place"><b>{rank}</b><span>{["1ST", "2ND", "3RD", "4TH"][rank - 1]} PLACE</span></div>
+    <div className="product-place"><b>{rank}</b><span>{["1ST", "2ND", "3RD"][rank - 1]} PLACE</span></div>
     <div className="product-name">{product.name}</div>
-    <img
-      src={product.image || fallbackImage}
-      alt={product.name}
-      onError={event => {
-        if (event.currentTarget.src.endsWith(fallbackImage)) return;
-        event.currentTarget.src = fallbackImage;
-      }}
-    />
+    {isCombo
+      ? <div className="combo-product-media">
+        <img
+          className="combo-product combo-product-primary"
+          src={product.image || fallbackImage}
+          alt="O/L Mission 6"
+          onError={event => {
+            if (event.currentTarget.src.endsWith(fallbackImage)) return;
+            event.currentTarget.src = fallbackImage;
+          }}
+        />
+        <img
+          className="combo-product combo-product-secondary"
+          src={product.secondaryImage || secondaryFallback}
+          alt="Scholarship"
+          onError={event => {
+            if (event.currentTarget.src.endsWith(secondaryFallback)) return;
+            event.currentTarget.src = secondaryFallback;
+          }}
+        />
+        <span className="combo-pack-badge">COMBO PACK</span>
+      </div>
+      : <img
+        src={product.image || fallbackImage}
+        alt={product.name}
+        onError={event => {
+          if (event.currentTarget.src.endsWith(fallbackImage)) return;
+          event.currentTarget.src = fallbackImage;
+        }}
+      />}
     <strong>{product.count.toLocaleString()} SALES</strong>
   </article>;
 }
@@ -702,19 +812,18 @@ function CelebrationEffects() {
   </div>;
 }
 
-function MissionSlide({ state }) {
+function MissionSlide({ state, showResultCard }) {
   const zone = zoneFor(state.sales);
   const unlocked = zone.key !== "danger";
   const reward = {
-    danger: { bars: 0, bundles: 0, flying: 0, spill: 0 },
-    silver: { bars: 4, bundles: 1, flying: 2, spill: 2 },
-    gold: { bars: 10, bundles: 3, flying: 7, spill: 5 },
-    mega: { bars: 18, bundles: 8, flying: 14, spill: 12 }
+    danger: { bars: 2, flying: 0, spill: 0 },
+    silver: { bars: 8, flying: 0, spill: 0 },
+    gold: { bars: 16, flying: 0, spill: 0 },
+    mega: { bars: 32, flying: 14, spill: 14 }
   }[zone.key];
   const goldBars = Array.from({ length: reward.bars }, (_, index) => index);
-  const cashBundles = Array.from({ length: reward.bundles }, (_, index) => index);
-  const flyingNotes = Array.from({ length: reward.flying }, (_, index) => index);
-  const spilledNotes = Array.from({ length: reward.spill }, (_, index) => index);
+  const flyingGoldBars = Array.from({ length: reward.flying }, (_, index) => index);
+  const spilledGoldBars = Array.from({ length: reward.spill }, (_, index) => index);
   const lightRays = Array.from({ length: 14 }, (_, index) => index);
 
   return <section className={`slide mission-slide zone-${zone.key}`}>
@@ -735,17 +844,17 @@ function MissionSlide({ state }) {
           />)}
         </div>
 
-        <div className="suitcase-money-burst" aria-hidden="true">
-          {flyingNotes.map(index => <i
-            className="flying-banknote"
+        <div className="suitcase-gold-burst" aria-hidden="true">
+          {flyingGoldBars.map(index => <i
+            className="flying-gold-bar"
             key={index}
             style={{
-              "--note-x": `${((index * 41) % 250) - 125}px`,
-              "--note-y": `${-(135 + ((index * 31) % 150))}px`,
-              "--note-r": `${-32 + ((index * 67) % 96)}deg`,
-              "--note-delay": `${(index % 7) * .11}s`
+              "--gold-x": `${((index * 41) % 300) - 150}px`,
+              "--gold-y": `${-(135 + ((index * 31) % 170))}px`,
+              "--gold-r": `${-32 + ((index * 67) % 96)}deg`,
+              "--gold-delay": `${(index % 7) * .11}s`
             }}
-          ><span>$</span></i>)}
+          ><b>GOLD</b></i>)}
         </div>
 
         <div className="suitcase-lid" aria-hidden="true">
@@ -768,32 +877,16 @@ function MissionSlide({ state }) {
         <div className="suitcase-base">
           <div className="suitcase-reward-tray">
             <span className="suitcase-tray-glow" />
-            {unlocked
-              ? <>
-                <div className="gold-bar-grid" aria-hidden="true">
-                  {goldBars.map(index => <i
-                    className="gold-bar"
-                    key={`bar-${index}`}
-                    style={{
-                      "--bar-delay": `${(index % 12) * .055}s`,
-                      "--bar-angle": `${-3 + ((index * 7) % 7)}deg`
-                    }}
-                  ><b>GOLD</b><span>999.9</span></i>)}
-                </div>
-                <div className="cash-bundle-layer" aria-hidden="true">
-                  {cashBundles.map(index => <i
-                    className="cash-bundle"
-                    key={`bundle-${index}`}
-                    style={{
-                      "--bundle-x": `${9 + ((index * 37) % 80)}%`,
-                      "--bundle-y": `${8 + ((index * 23) % 48)}%`,
-                      "--bundle-r": `${-13 + ((index * 11) % 27)}deg`,
-                      "--bundle-delay": `${(index % 8) * .08}s`
-                    }}
-                  ><span>$</span></i>)}
-                </div>
-              </>
-              : <div className="empty-suitcase-message"><b>EMPTY</b><span>NO COMMISSION</span></div>}
+            <div className="gold-bar-grid" aria-hidden="true">
+              {goldBars.map(index => <i
+                className="gold-bar"
+                key={`bar-${index}`}
+                style={{
+                  "--bar-delay": `${(index % 16) * .045}s`,
+                  "--bar-angle": `${-3 + ((index * 7) % 7)}deg`
+                }}
+              ><b>GOLD</b><span>999.9</span></i>)}
+            </div>
           </div>
           <div className="suitcase-front-edge" aria-hidden="true">
             <span className="suitcase-front-grain" />
@@ -804,8 +897,9 @@ function MissionSlide({ state }) {
           </div>
         </div>
 
-        <div className="suitcase-money-spill" aria-hidden="true">
-          {spilledNotes.map(index => <i
+        <div className="suitcase-gold-spill" aria-hidden="true">
+          {spilledGoldBars.map(index => <i
+            className="spilled-gold-bar"
             key={index}
             style={{
               "--spill-x": `${5 + ((index * 43) % 90)}%`,
@@ -813,11 +907,11 @@ function MissionSlide({ state }) {
               "--spill-r": `${-24 + ((index * 31) % 49)}deg`,
               "--spill-delay": `${(index % 7) * .07}s`
             }}
-          ><span>$</span></i>)}
+          ><b>GOLD</b></i>)}
         </div>
       </div>
 
-      <aside className={`mission-result-card mission-result-${zone.key}`}>
+      <aside className={`mission-result-card mission-result-${zone.key} ${showResultCard ? "is-visible" : ""}`}>
         <span className="mission-result-kicker">{unlocked ? "ZONE REWARD" : "ZONE STATUS"}</span>
         <h2>{zone.name}</h2>
         <div className="mission-result-divider" />
@@ -831,11 +925,6 @@ function MissionSlide({ state }) {
         </div>
         <p>{zone.note}</p>
       </aside>
-    </div>
-    <div className="zone-progress reveal footer-reveal">
-      {[
-        ["danger", "< 8,000"], ["silver", "8,000+"], ["gold", "9,000+"], ["mega", "10,000+"]
-      ].map(([key, label]) => <div className={key === zone.key ? "active" : ""} key={key}><i /><span>{label}</span></div>)}
     </div>
   </section>;
 }
@@ -856,22 +945,22 @@ function FinaleSlide({ state }) {
 
 function Stage({
   index, state, replay, onPerformerCardReveal, onProductCardReveal,
-  revealCommission, commissionRollDuration
+  revealCommission, commissionRollDuration, showMissionResult
 }) {
   return <div className={`presentation-stage stage-${index}`} key={`${index}-${replay}`}>
-    {index === 0 && <IntroSlide />}
-    {index === 1 && <PerformersSlide state={state} list={state.monthly} type="monthly" onCardReveal={onPerformerCardReveal} />}
-    {index === 2 && <SixMonthFlightSlide state={state} list={state.sixMonth} />}
-    {index === 3 && <ProductsSlide state={state} onCardReveal={onProductCardReveal} />}
-    {index === 4 && <CommissionSlide
+    {index === SLIDE.ACHIEVERS && <IntroSlide />}
+    {index === SLIDE.WEEKLY && <PerformersSlide state={state} list={state.weekly} type="weekly" onCardReveal={onPerformerCardReveal} />}
+    {index === SLIDE.PRODUCTS && <ProductsSlide state={state} onCardReveal={onProductCardReveal} />}
+    {index === SLIDE.MONTHLY && <PerformersSlide state={state} list={state.monthly} type="monthly" onCardReveal={onPerformerCardReveal} />}
+    {index === SLIDE.SIX_MONTH && <SixMonthFlightSlide state={state} list={state.sixMonth} />}
+    {index === SLIDE.COMMISSION && <CommissionSlide
       state={state}
       replay={replay}
       revealAmount={revealCommission}
       rollDurationMs={commissionRollDuration}
     />}
-    {index === 5 && <MissionSlide state={state} />}
-    {index === 6 && <PerformersSlide state={state} list={state.weekly} type="weekly" onCardReveal={onPerformerCardReveal} />}
-    {index === 7 && <FinaleSlide state={state} />}
+    {index === SLIDE.MISSION && <MissionSlide state={state} showResultCard={showMissionResult} />}
+    {index === SLIDE.CONGRATULATIONS && <FinaleSlide state={state} />}
   </div>;
 }
 
@@ -954,8 +1043,13 @@ function PerformerEditor({ state, setState, listKey }) {
 
 function Inspector({ index, state, setState, onClose, onSave, saving }) {
   const update = patch => setState(s => ({ ...s, ...patch }));
-  const listKey = index === 1 ? "monthly" : index === 2 ? "sixMonth" : "weekly";
-  const placeLabels = ["1ST PLACE", "2ND PLACE", "3RD PLACE", "4TH PLACE"];
+  const listKey = index === SLIDE.MONTHLY
+    ? "monthly"
+    : index === SLIDE.SIX_MONTH
+      ? "sixMonth"
+      : "weekly";
+  const placeLabels = ["1ST PLACE", "2ND PLACE", "3RD PLACE"];
+  const weekOptions = WEEKS.includes(state.week) ? WEEKS : [state.week, ...WEEKS].filter(Boolean);
 
   const swapProductPlaces = (fromIndex, toIndex) => setState(current => {
     if (fromIndex === toIndex) return current;
@@ -1001,16 +1095,16 @@ function Inspector({ index, state, setState, onClose, onSave, saving }) {
   return <aside className="inspector">
     <header><div><small>SLIDE {index + 1} OF 8</small><h2>{slideNames[index]}</h2></div><button onClick={onClose}><X/></button></header>
     <div className="inspector-scroll">
-      {(index === 1 || index === 2 || index === 6) && <>
+      {(index === SLIDE.WEEKLY || index === SLIDE.MONTHLY || index === SLIDE.SIX_MONTH) && <>
         <div className="inspector-section">
-          {index === 1 && <label className="field"><span>Month</span><select value={state.month} onChange={e => update({ month: e.target.value })}>{MONTHS.map(month => <option value={month} key={month}>{month}</option>)}</select></label>}
-          {index === 2 && <label className="field"><span>Flight-board title</span><input value={state.tourTitle} onChange={e => update({ tourTitle: e.target.value.toUpperCase() })}/></label>}
-          {index === 6 && <label className="field"><span>Week</span><input value={state.week} onChange={e => update({ week: e.target.value.toUpperCase() })}/></label>}
+          {index === SLIDE.WEEKLY && <label className="field"><span>Week</span><select value={state.week} onChange={e => update({ week: e.target.value })}>{weekOptions.map(week => <option value={week} key={week}>{week}</option>)}</select></label>}
+          {index === SLIDE.MONTHLY && <label className="field"><span>Month</span><select value={state.month} onChange={e => update({ month: e.target.value })}>{MONTHS.map(month => <option value={month} key={month}>{month}</option>)}</select></label>}
+          {index === SLIDE.SIX_MONTH && <label className="field"><span>Flight-board title</span><input value={state.tourTitle} onChange={e => update({ tourTitle: e.target.value.toUpperCase() })}/></label>}
         </div>
         <PerformerEditor state={state} setState={setState} listKey={listKey}/>
       </>}
-      {index === 3 && <div className="inspector-section">
-        <div className="section-title"><span>Product rankings</span><small>Select place, product and sales</small></div>
+      {index === SLIDE.PRODUCTS && <div className="inspector-section">
+        <div className="section-title"><span>Product rankings</span><small>Select rank, product and sales</small></div>
         {state.products.map((product, i) => <div className="product-editor" key={product.id}>
           <select
             className="product-place-select"
@@ -1036,23 +1130,23 @@ function Inspector({ index, state, setState, onClose, onSave, saving }) {
             aria-label={`${product.name} sales`}
           />
         </div>)}
-        <p className="helper">Changing a place or selecting a product already used in another place swaps the two products. Every product remains in only one rank.</p>
+        <p className="helper">Each rank lets you select the product and enter its sales count. Selecting an already-used product swaps the two cards, so every product remains unique.</p>
       </div>}
-      {index === 4 && <div className="inspector-section">
+      {index === SLIDE.COMMISSION && <div className="inspector-section">
         <label className="field"><span>Total sales</span><input className="big-input" type="number" min="0" value={state.sales} onChange={e => updateTotalSales(e.target.value)}/></label>
         <div className="calculation-card"><span>CURRENT COMMISSION</span><strong>{money(state.sales * 300)}</strong></div>
         <div className={`zone-preview ${zoneFor(state.sales).key}`}><span>Mission Unlock updates automatically</span><b>{zoneFor(state.sales).name}</b><strong>{zoneFor(state.sales).amount ? money(zoneFor(state.sales).amount) : "NO COMMISSION"}</strong></div>
-        <p className="helper">Enter Total Sales here. Commission Update counts the current achieved commission at LKR 300 per sale. Mission Unlock continues to use its separate sales-zone rules.</p>
+        <p className="helper">Enter Total Sales here. Mission Unlock awards LKR 1,000,000 at 6,500 sales, LKR 2,000,000 at 7,500 sales, and LKR 3,000,000 at 10,000 sales.</p>
       </div>}
-      {index === 5 && <div className="inspector-section">
-        <div className="locked-card"><h3>Controlled by Commission Update</h3><p>Edit Total Sales on Slide 5 — Commission Update. Mission Unlock changes automatically from the same sales value.</p></div>
+      {index === SLIDE.MISSION && <div className="inspector-section">
+        <div className="locked-card"><h3>Controlled by Commission Update</h3><p>Edit Total Sales on Slide 6 — Commission Update. Mission Unlock changes automatically from the same sales value.</p></div>
         <div className={`zone-preview ${zoneFor(state.sales).key}`}><span>Current result</span><b>{zoneFor(state.sales).name}</b><strong>{zoneFor(state.sales).amount ? money(zoneFor(state.sales).amount) : "NO COMMISSION"}</strong></div>
       </div>}
-      {index === 7 && <div className="inspector-section">
+      {index === SLIDE.CONGRATULATIONS && <div className="inspector-section">
         <label className="field"><span>Headline</span><input value={state.congratulationsTitle ?? ""} onChange={e => update({ congratulationsTitle: e.target.value })} placeholder="Congratulations!"/></label>
         <label className="field"><span>Message</span><textarea rows="5" value={state.congratulationsMessage ?? ""} onChange={e => update({ congratulationsMessage: e.target.value })} placeholder="Excellent work from the whole team."/></label>
       </div>}
-      {index === 0 && <div className="inspector-section">
+      {index === SLIDE.ACHIEVERS && <div className="inspector-section">
         <div className="locked-card"><Brand small/><h3>Cinematic brand slide</h3><p>This slide uses the supplied Lesi Iskole logo and the clean branded background.</p></div>
       </div>}
     </div>
@@ -1069,19 +1163,17 @@ function SlideRail({ index, onSelect }) {
   </aside>;
 }
 
-function StartOverlay({ onStart, onEdit, muted, onToggleMute }) {
+function StartOverlay({ onStart, onEdit }) {
   return <div className="start-overlay">
     <Brand/>
     <span>INTERACTIVE AWARDS EXPERIENCE</span>
     <h1>ACHIEVERS SHOW</h1>
-    <p>Monthly and travel boards reveal slowly; use Play/Pause during presentation.</p>
+    <p>Choose how presentation audio should behave, then start the show.</p>
     <div className="start-actions">
-      <button className="play-mode-button" onClick={onStart}><Play fill="currentColor"/>PLAY MODE</button>
+      <button className="play-mode-button" onClick={() => onStart(SOUND_MODES.REPEAT)}><Volume2/>PLAY WITH SOUND</button>
+      <button className="once-mode-button" onClick={() => onStart(SOUND_MODES.ONCE)}><Play fill="currentColor"/>PLAY SOUND ONE TIME</button>
+      <button className="silent-mode-button" onClick={() => onStart(SOUND_MODES.OFF)}><VolumeX/>PLAY WITHOUT SOUND</button>
       <button className="edit-mode-button" onClick={onEdit}><Edit3/>EDITING MODE</button>
-      <button className={`sound-mode-button ${muted ? "is-muted" : "is-on"}`} onClick={onToggleMute}>
-        {muted ? <VolumeX/> : <Volume2/>}
-        {muted ? "UNMUTE SOUND" : "MUTE SOUND"}
-      </button>
     </div>
   </div>;
 }
@@ -1095,9 +1187,11 @@ function App() {
   const [replay, setReplay] = useState(0);
   const [saving, setSaving] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [muted, setMuted] = useState(true);
+  const [soundMode, setSoundMode] = useState(SOUND_MODES.OFF);
+  const muted = soundMode === SOUND_MODES.OFF;
   const [validationWarning, setValidationWarning] = useState(null);
   const [missionSequenceComplete, setMissionSequenceComplete] = useState(false);
+  const [missionResultVisible, setMissionResultVisible] = useState(false);
   const [commissionSequence, setCommissionSequence] = useState({
     revealed: false,
     rollDurationMs: COMMISSION_ROLL_DURATION_MS
@@ -1105,6 +1199,7 @@ function App() {
   const stageRef = useRef(null);
   const introAudioRef = useRef(null);
   const monthlyAudioRef = useRef(null);
+  const weeklyAudioRef = useRef(null);
   const travelAudioRef = useRef(null);
   const travelCardAudioRef = useRef(null);
   const battleAudioRef = useRef(null);
@@ -1114,6 +1209,7 @@ function App() {
   const battleCardAudioRef = useRef(null);
   const monthlyCardAudioRef = useRef(null);
   const weeklyCardAudioRef = useRef(null);
+  const missionCardAudioRef = useRef(null);
   const celebrateAudioRef = useRef(null);
   const cardSoundTimersRef = useRef([]);
   const cardSoundInstancesRef = useRef([]);
@@ -1123,15 +1219,21 @@ function App() {
   const commissionFallbackTimerRef = useRef(null);
   const commissionCountStopTimerRef = useRef(null);
   const missionRunRef = useRef(0);
+  const missionBackgroundTimerRef = useRef(null);
+  const missionCardTimerRef = useRef(null);
   const missionAnimationTimerRef = useRef(null);
   const missionAudioFinishedRef = useRef(false);
   const missionAnimationFinishedRef = useRef(false);
   const mutedRef = useRef(true);
+  const soundModeRef = useRef(SOUND_MODES.OFF);
+  const playedSoundSlidesRef = useRef(new Set());
+  const activeSlideSoundEnabledRef = useRef(false);
 
 
   useEffect(() => {
     const introAudio = new Audio(INTRO_SOUND);
     const monthlyAudio = new Audio(MONTHLY_SOUND);
+    const weeklyAudio = new Audio(WEEKLY_SOUND);
     const travelAudio = new Audio(TRAVEL_SOUND);
     const travelCardAudio = new Audio(TRAVEL_CARD_SOUND);
     const battleAudio = new Audio(BATTLE_SOUND);
@@ -1146,9 +1248,11 @@ function App() {
     const battleCardAudio = new Audio(BATTLE_CARD_SOUND);
     const monthlyCardAudio = new Audio(MONTHLY_CARD_SOUND);
     const weeklyCardAudio = new Audio(WEEKLY_CARD_SOUND);
+    const missionCardAudio = new Audio(MISSION_CARD_SOUND);
     const celebrateAudio = new Audio(CELEBRATE_SOUND);
     introAudio.preload = "auto";
     monthlyAudio.preload = "auto";
+    weeklyAudio.preload = "auto";
     travelAudio.preload = "auto";
     travelCardAudio.preload = "auto";
     battleAudio.preload = "auto";
@@ -1163,16 +1267,18 @@ function App() {
     battleCardAudio.preload = "auto";
     monthlyCardAudio.preload = "auto";
     weeklyCardAudio.preload = "auto";
+    missionCardAudio.preload = "auto";
     celebrateAudio.preload = "auto";
     [
-      introAudio, monthlyAudio, travelAudio, travelCardAudio, battleAudio,
+      introAudio, monthlyAudio, weeklyAudio, travelAudio, travelCardAudio, battleAudio,
       commissionIntroAudio, commissionAudio, ...Object.values(zoneAudios),
-      battleCardAudio, monthlyCardAudio, weeklyCardAudio, celebrateAudio
+      battleCardAudio, monthlyCardAudio, weeklyCardAudio, missionCardAudio, celebrateAudio
     ].forEach(audio => {
       audio.muted = mutedRef.current;
     });
     introAudioRef.current = introAudio;
     monthlyAudioRef.current = monthlyAudio;
+    weeklyAudioRef.current = weeklyAudio;
     travelAudioRef.current = travelAudio;
     travelCardAudioRef.current = travelCardAudio;
     battleAudioRef.current = battleAudio;
@@ -1182,6 +1288,7 @@ function App() {
     battleCardAudioRef.current = battleCardAudio;
     monthlyCardAudioRef.current = monthlyCardAudio;
     weeklyCardAudioRef.current = weeklyCardAudio;
+    missionCardAudioRef.current = missionCardAudio;
     celebrateAudioRef.current = celebrateAudio;
 
     return () => {
@@ -1200,13 +1307,16 @@ function App() {
       Object.values(zoneAudios).forEach(audio => { audio.onended = null; });
       if (commissionFallbackTimerRef.current) window.clearTimeout(commissionFallbackTimerRef.current);
       if (commissionCountStopTimerRef.current) window.clearTimeout(commissionCountStopTimerRef.current);
+      if (missionBackgroundTimerRef.current) window.clearTimeout(missionBackgroundTimerRef.current);
+      if (missionCardTimerRef.current) window.clearTimeout(missionCardTimerRef.current);
       if (missionAnimationTimerRef.current) window.clearTimeout(missionAnimationTimerRef.current);
-      [introAudio, monthlyAudio, travelAudio, travelCardAudio, battleAudio, commissionIntroAudio, commissionAudio, ...Object.values(zoneAudios), battleCardAudio, monthlyCardAudio, weeklyCardAudio, celebrateAudio].forEach(audio => {
+      [introAudio, monthlyAudio, weeklyAudio, travelAudio, travelCardAudio, battleAudio, commissionIntroAudio, commissionAudio, ...Object.values(zoneAudios), battleCardAudio, monthlyCardAudio, weeklyCardAudio, missionCardAudio, celebrateAudio].forEach(audio => {
         audio.pause();
         audio.currentTime = 0;
       });
       introAudioRef.current = null;
       monthlyAudioRef.current = null;
+      weeklyAudioRef.current = null;
       travelAudioRef.current = null;
       travelCardAudioRef.current = null;
       battleAudioRef.current = null;
@@ -1216,15 +1326,18 @@ function App() {
       battleCardAudioRef.current = null;
       monthlyCardAudioRef.current = null;
       weeklyCardAudioRef.current = null;
+      missionCardAudioRef.current = null;
       celebrateAudioRef.current = null;
     };
   }, []);
 
   useEffect(() => {
     mutedRef.current = muted;
+    soundModeRef.current = soundMode;
     [
       introAudioRef.current,
       monthlyAudioRef.current,
+      weeklyAudioRef.current,
       travelAudioRef.current,
       travelCardAudioRef.current,
       battleAudioRef.current,
@@ -1234,13 +1347,14 @@ function App() {
       battleCardAudioRef.current,
       monthlyCardAudioRef.current,
       weeklyCardAudioRef.current,
+      missionCardAudioRef.current,
       celebrateAudioRef.current,
       ...cardSoundInstancesRef.current,
       ...travelCardInstancesRef.current
     ].forEach(audio => {
       if (audio) audio.muted = muted;
     });
-  }, [muted]);
+  }, [muted, soundMode]);
 
   const clearCardSounds = () => {
     cardSoundTimersRef.current.forEach(timer => window.clearTimeout(timer));
@@ -1284,11 +1398,13 @@ function App() {
   const stopAllSounds = () => {
     clearTravelCardSounds();
     clearCardSounds();
+    activeSlideSoundEnabledRef.current = false;
     commissionRunRef.current += 1;
     missionRunRef.current += 1;
     missionAudioFinishedRef.current = false;
     missionAnimationFinishedRef.current = false;
     setMissionSequenceComplete(false);
+    setMissionResultVisible(false);
     if (missionAnimationTimerRef.current) {
       window.clearTimeout(missionAnimationTimerRef.current);
       missionAnimationTimerRef.current = null;
@@ -1301,11 +1417,19 @@ function App() {
       window.clearTimeout(commissionCountStopTimerRef.current);
       commissionCountStopTimerRef.current = null;
     }
+    if (missionBackgroundTimerRef.current) {
+      window.clearTimeout(missionBackgroundTimerRef.current);
+      missionBackgroundTimerRef.current = null;
+    }
+    if (missionCardTimerRef.current) {
+      window.clearTimeout(missionCardTimerRef.current);
+      missionCardTimerRef.current = null;
+    }
     if (commissionIntroAudioRef.current) commissionIntroAudioRef.current.onended = null;
     Object.values(zoneAudioRefs.current).forEach(audio => {
       if (audio) audio.onended = null;
     });
-    [introAudioRef.current, monthlyAudioRef.current, travelAudioRef.current, battleAudioRef.current, commissionIntroAudioRef.current, commissionAudioRef.current, celebrateAudioRef.current, ...Object.values(zoneAudioRefs.current)].forEach(audio => {
+    [introAudioRef.current, monthlyAudioRef.current, weeklyAudioRef.current, travelAudioRef.current, battleAudioRef.current, commissionIntroAudioRef.current, commissionAudioRef.current, celebrateAudioRef.current, ...Object.values(zoneAudioRefs.current)].forEach(audio => {
       if (!audio) return;
       audio.pause();
       audio.currentTime = 0;
@@ -1315,7 +1439,7 @@ function App() {
 
   const scheduleTravelCardSounds = () => {
     clearTravelCardSounds();
-    const delays = [850, 2400, 3950, 5500, 7050, 8600];
+    const delays = [1000, 2300, 3600, 4900, 6200, 7500];
     travelCardTimersRef.current = delays.map(delay => window.setTimeout(() => {
       const source = travelCardAudioRef.current;
       if (!source) return;
@@ -1330,14 +1454,26 @@ function App() {
     }, delay));
   };
 
-  const playSoundForSlide = slideIndex => {
+  const playSoundForSlide = (slideIndex, requestedSoundMode = soundModeRef.current) => {
     stopAllSounds();
-    if (slideIndex === 5) {
+    let audioAllowed = requestedSoundMode !== SOUND_MODES.OFF;
+    if (requestedSoundMode === SOUND_MODES.ONCE) {
+      if (playedSoundSlidesRef.current.has(slideIndex)) {
+        audioAllowed = false;
+      } else {
+        playedSoundSlidesRef.current.add(slideIndex);
+      }
+    }
+    activeSlideSoundEnabledRef.current = audioAllowed;
+
+    if (slideIndex === SLIDE.MISSION) {
       const runId = ++missionRunRef.current;
       const zoneAudio = zoneAudioRefs.current[zoneFor(state.sales).key];
       missionAudioFinishedRef.current = false;
       missionAnimationFinishedRef.current = false;
       setMissionSequenceComplete(false);
+      setMissionResultVisible(false);
+      let resultRevealed = false;
 
       const completeMissionWhenReady = () => {
         if (missionRunRef.current !== runId) return;
@@ -1346,8 +1482,14 @@ function App() {
         }
       };
 
-      const finishMissionAudio = () => {
+      const revealMissionResult = () => {
         if (missionRunRef.current !== runId) return;
+        if (resultRevealed) return;
+        resultRevealed = true;
+        setMissionResultVisible(true);
+        if (audioAllowed && missionCardAudioRef.current) {
+          playCardSound(missionCardAudioRef.current);
+        }
         missionAudioFinishedRef.current = true;
         if (zoneAudio) zoneAudio.onended = null;
         completeMissionWhenReady();
@@ -1360,17 +1502,25 @@ function App() {
         completeMissionWhenReady();
       }, MISSION_ANIMATION_DURATION_MS);
 
-      if (zoneAudio) {
-        zoneAudio.currentTime = 0;
-        zoneAudio.onended = finishMissionAudio;
-        zoneAudio.play().catch(finishMissionAudio);
+      if (audioAllowed && zoneAudio) {
+        missionBackgroundTimerRef.current = window.setTimeout(() => {
+          if (missionRunRef.current !== runId) return;
+          missionBackgroundTimerRef.current = null;
+          zoneAudio.currentTime = 0;
+          zoneAudio.onended = revealMissionResult;
+          zoneAudio.play().catch(revealMissionResult);
+        }, MISSION_BACKGROUND_SOUND_DELAY_MS);
       } else {
-        finishMissionAudio();
+        missionCardTimerRef.current = window.setTimeout(() => {
+          if (missionRunRef.current !== runId) return;
+          missionCardTimerRef.current = null;
+          revealMissionResult();
+        }, MISSION_CARD_REVEAL_MS);
       }
       return;
     }
 
-    if (slideIndex === 4) {
+    if (slideIndex === SLIDE.COMMISSION) {
       const runId = ++commissionRunRef.current;
       const introAudio = commissionIntroAudioRef.current;
 
@@ -1391,7 +1541,7 @@ function App() {
         setCommissionSequence({ revealed: true, rollDurationMs });
 
         const countAudio = commissionAudioRef.current;
-        if (countAudio) {
+        if (audioAllowed && countAudio) {
           countAudio.currentTime = 0;
           countAudio.loop = true;
           countAudio.play().catch(() => {});
@@ -1404,7 +1554,7 @@ function App() {
         }
       };
 
-      if (introAudio) {
+      if (audioAllowed && introAudio) {
         introAudio.currentTime = 0;
         introAudio.onended = startCommissionCount;
         introAudio.play().catch(() => {
@@ -1416,40 +1566,50 @@ function App() {
       return;
     }
 
-    const audio = slideIndex === 0
+    const audio = slideIndex === SLIDE.ACHIEVERS
       ? introAudioRef.current
-      : slideIndex === 1
-        ? monthlyAudioRef.current
-        : slideIndex === 2
-          ? travelAudioRef.current
-          : slideIndex === 3
-            ? battleAudioRef.current
-            : slideIndex === 7
+      : slideIndex === SLIDE.WEEKLY
+        ? weeklyAudioRef.current
+        : slideIndex === SLIDE.PRODUCTS
+          ? battleAudioRef.current
+          : slideIndex === SLIDE.MONTHLY
+            ? monthlyAudioRef.current
+            : slideIndex === SLIDE.SIX_MONTH
+              ? travelAudioRef.current
+              : slideIndex === SLIDE.CONGRATULATIONS
               ? celebrateAudioRef.current
               : null;
-    if (audio) {
+    if (audioAllowed && audio) {
       audio.currentTime = 0;
       audio.play().catch(() => {});
     }
-    if (slideIndex === 2) scheduleTravelCardSounds();
+    if (audioAllowed && slideIndex === SLIDE.SIX_MONTH) {
+      scheduleTravelCardSounds();
+      scheduleCardSounds(missionCardAudioRef.current, SIX_MONTH_SPOTLIGHT_SOUND_DELAYS_MS);
+    }
   };
 
   const handlePerformerCardReveal = type => {
-    if (!started || mode !== "present" || paused) return;
+    if (!started || mode !== "present" || paused || !activeSlideSoundEnabledRef.current) return;
     playCardSound(type === "monthly" ? monthlyCardAudioRef.current : weeklyCardAudioRef.current);
   };
 
   const handleProductCardReveal = () => {
-    if (!started || mode !== "present" || paused) return;
+    if (!started || mode !== "present" || paused || !activeSlideSoundEnabledRef.current) return;
     playCardSound(battleCardAudioRef.current);
   };
 
-  const toggleMute = () => {
-    setMuted(current => {
-      const next = !current;
-      mutedRef.current = next;
-      return next;
-    });
+  const cycleSoundMode = () => {
+    const next = soundModeRef.current === SOUND_MODES.OFF
+      ? SOUND_MODES.REPEAT
+      : soundModeRef.current === SOUND_MODES.REPEAT
+        ? SOUND_MODES.ONCE
+        : SOUND_MODES.OFF;
+    soundModeRef.current = next;
+    mutedRef.current = next === SOUND_MODES.OFF;
+    if (next === SOUND_MODES.ONCE) playedSoundSlidesRef.current.clear();
+    setSoundMode(next);
+    if (next === SOUND_MODES.OFF) stopAllSounds();
   };
 
   const togglePause = () => {
@@ -1458,7 +1618,7 @@ function App() {
       if (next) {
         clearTravelCardSounds();
         clearCardSounds();
-        [introAudioRef.current, monthlyAudioRef.current, travelAudioRef.current, battleAudioRef.current, commissionIntroAudioRef.current, commissionAudioRef.current, celebrateAudioRef.current, ...Object.values(zoneAudioRefs.current)].forEach(audio => audio?.pause());
+        [introAudioRef.current, monthlyAudioRef.current, weeklyAudioRef.current, travelAudioRef.current, battleAudioRef.current, commissionIntroAudioRef.current, commissionAudioRef.current, celebrateAudioRef.current, ...Object.values(zoneAudioRefs.current)].forEach(audio => audio?.pause());
       } else if (started && mode === "present") {
         setReplay(value => value + 1);
         playSoundForSlide(index);
@@ -1469,7 +1629,8 @@ function App() {
 
   const playSlide = () => {
     setReplay(current => current + 1);
-    if (index === 4 || index === 5 || (started && mode === "present")) playSoundForSlide(index);
+    if (started && mode === "present") playSoundForSlide(index);
+    else stopAllSounds();
   };
 
   const select = next => {
@@ -1478,7 +1639,7 @@ function App() {
     setIndex(safe);
     setReplay(current => current + 1);
 
-    if (safe === 4 || safe === 5 || (started && mode === "present")) playSoundForSlide(safe);
+    if (started && mode === "present") playSoundForSlide(safe);
     else stopAllSounds();
   };
 
@@ -1493,7 +1654,7 @@ function App() {
     setValidationWarning(problem);
   };
 
-  const start = () => {
+  const start = (requestedSoundMode = soundModeRef.current) => {
     const problem = validatePresentation(state);
     if (problem) {
       showValidationProblem(problem);
@@ -1501,13 +1662,17 @@ function App() {
     }
 
     setValidationWarning(null);
+    playedSoundSlidesRef.current.clear();
+    soundModeRef.current = requestedSoundMode;
+    mutedRef.current = requestedSoundMode === SOUND_MODES.OFF;
+    setSoundMode(requestedSoundMode);
     setStarted(true);
     setPaused(false);
     setMode("present");
     setInspector(false);
     setReplay(current => current + 1);
 
-    playSoundForSlide(index);
+    playSoundForSlide(index, requestedSoundMode);
   };
 
   const openEditor = () => {
@@ -1545,18 +1710,20 @@ function App() {
 
   useEffect(() => {
     if (!started || mode !== "present" || paused) return undefined;
-    if (index === 4 && !commissionSequence.revealed) return undefined;
-    if (index === 5 && !missionSequenceComplete) return undefined;
+    if (index === SLIDE.COMMISSION && !commissionSequence.revealed) return undefined;
+    if (index === SLIDE.MISSION && !missionSequenceComplete) return undefined;
 
-    const duration = index === 3
+    const duration = index === SLIDE.PRODUCTS
       ? SLOW_BATTLE_SLIDE_DURATION_MS
-      : index === 4
+      : index === SLIDE.COMMISSION
         ? COMMISSION_AFTER_REVEAL_DURATION_MS
-        : index === 5
+        : index === SLIDE.MISSION
           ? MISSION_FINAL_HOLD_MS
-          : index === 6
+          : index === SLIDE.WEEKLY
             ? WEEKLY_PERFORMER_SLIDE_DURATION_MS
-            : index === 1 || index === 2
+            : index === SLIDE.SIX_MONTH
+              ? SIX_MONTH_SLIDE_DURATION_MS
+              : index === SLIDE.MONTHLY
               ? SLOW_PERFORMER_SLIDE_DURATION_MS
               : DEFAULT_SLIDE_DURATION_MS;
     const timer = window.setTimeout(() => {
@@ -1585,8 +1752,14 @@ function App() {
     return () => window.removeEventListener("keydown", key);
   }, [index, mode]);
 
-  return <main className={`show-app mode-${mode} ${paused ? "show-paused" : ""} ${muted ? "sound-muted" : "sound-on"}`}>
-    {!started && <StartOverlay onStart={start} onEdit={openEditor} muted={muted} onToggleMute={toggleMute}/>}
+  const soundModeText = soundMode === SOUND_MODES.OFF
+    ? "Play without sound"
+    : soundMode === SOUND_MODES.ONCE
+      ? "Sound once per slide"
+      : "Sound on every play";
+
+  return <main className={`show-app mode-${mode} ${paused ? "show-paused" : ""} ${muted ? "sound-muted" : "sound-on"} sound-mode-${soundMode}`}>
+    {!started && <StartOverlay onStart={start} onEdit={openEditor}/>}
     {mode === "edit" && validationWarning && <div className="presentation-warning" role="alert" aria-live="assertive">
       <span className="warning-symbol">!</span>
       <div>
@@ -1600,13 +1773,13 @@ function App() {
       {mode === "edit" && <header className="topbar">
         <div className="project-title"><Brand small/><div><b>Achievers Show</b></div></div>
         <div className="top-actions">
-          <button className={`sound-toggle ${muted ? "is-muted" : "is-on"}`} onClick={toggleMute}>
-            {muted ? <VolumeX size={16}/> : <Volume2 size={16}/>}
-            {muted ? "Unmute sound" : "Mute sound"}
+          <button className={`sound-toggle sound-mode-${soundMode} ${muted ? "is-muted" : "is-on"}`} onClick={cycleSoundMode} title="Change sound mode">
+            {soundMode === SOUND_MODES.OFF ? <VolumeX size={16}/> : soundMode === SOUND_MODES.ONCE ? <Play size={16}/> : <Volume2 size={16}/>}
+            {soundModeText}
           </button>
           <button className="pause-button" onClick={togglePause}>{paused ? <Play size={16}/> : <Pause size={16}/>}{paused ? "Play show" : "Pause show"}</button>
           <button onClick={() => playSlide()}><RotateCcw size={16}/>Replay animation</button>
-          <button className="present-button" onClick={start}><MonitorPlay size={18}/>Present</button>
+          <button className="present-button" onClick={() => start(soundModeRef.current)}><MonitorPlay size={18}/>Present</button>
         </div>
       </header>}
       <div className="stage-shell" ref={stageRef}>
@@ -1618,16 +1791,17 @@ function App() {
           onProductCardReveal={handleProductCardReveal}
           revealCommission={commissionSequence.revealed}
           commissionRollDuration={commissionSequence.rollDurationMs}
+          showMissionResult={mode !== "present" || missionResultVisible}
         />
         <div className="present-controls">
           <button onClick={() => select(index - 1)} aria-label="Previous slide"><ChevronLeft/></button>
           <button
-            className={`sound-control ${muted ? "is-muted" : "is-on"}`}
-            onClick={toggleMute}
-            aria-label={muted ? "Unmute sound" : "Mute sound"}
-            title={muted ? "Unmute sound" : "Mute sound"}
+            className={`sound-control sound-mode-${soundMode} ${muted ? "is-muted" : "is-on"}`}
+            onClick={cycleSoundMode}
+            aria-label={soundModeText}
+            title={`${soundModeText}. Click to change mode.`}
           >
-            {muted ? <VolumeX/> : <Volume2/>}
+            {soundMode === SOUND_MODES.OFF ? <VolumeX/> : soundMode === SOUND_MODES.ONCE ? <Play fill="currentColor"/> : <Volume2/>}
           </button>
           <button onClick={() => playSlide()} aria-label="Replay animation"><RotateCcw/></button>
           <button onClick={togglePause} aria-label={paused ? "Play slideshow" : "Pause slideshow"}>{paused ? <Play fill="currentColor"/> : <Pause fill="currentColor"/>}</button>
