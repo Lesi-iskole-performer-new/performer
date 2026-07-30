@@ -12,8 +12,9 @@ const MONTHLY_SOUND = `${ASSET}/sounds/Monthlyperformerce.mp3`;
 const WEEKLY_SOUND = `${ASSET}/sounds/Weeklyperfrmer.mp3`;
 const TRAVEL_SOUND = `${ASSET}/sounds/Travel.mp3`;
 const TRAVEL_CARD_SOUND = `${ASSET}/sounds/travelcard.mp3`;
-const BATTLE_BACKGROUND_SOUND = `${ASSET}/sounds/Battlebackround.mp3`;
-const BATTLE_CARD_POP_SOUND = `${ASSET}/sounds/Battle.mp3`;
+const TRAVEL_SPOTLIGHT_SOUND = `${ASSET}/sounds/cardelectric.mp3`;
+const BATTLE_SOUND = `${ASSET}/sounds/Battlebackround.mp3`;
+const BATTLE_CARD_SOUND = `${ASSET}/sounds/Battle.mp3`;
 const MONTHLY_CARD_SOUND = `${ASSET}/sounds/Monthlywosh.mp3`;
 const WEEKLY_CARD_SOUND = `${ASSET}/sounds/weekwoosh.mp3`;
 const COMMISSION_INTRO_SOUND = `${ASSET}/sounds/ganata.mp3`;
@@ -22,24 +23,23 @@ const DANGER_ZONE_SOUND = `${ASSET}/sounds/dangerzone.mp3`;
 const SILVER_ZONE_SOUND = `${ASSET}/sounds/silverzone.mp3`;
 const GOLD_ZONE_SOUND = `${ASSET}/sounds/goldzone.mp3`;
 const MEGA_ZONE_SOUND = `${ASSET}/sounds/megajackpot.mp3`;
-const MISSION_CARD_SOUND = `${ASSET}/sounds/cardelectric.mp3`;
+const MISSION_CARD_SOUND = `${ASSET}/sounds/GunshotElectric.mp3`;
 const CELEBRATE_SOUND = `${ASSET}/sounds/celebrate.mp3`;
 const DEFAULT_SLIDE_DURATION_MS = 8000;
 const SLOW_PERFORMER_SLIDE_DURATION_MS = 18000;
-const SIX_MONTH_SLIDE_DURATION_MS = 31000;
-const SIX_MONTH_SPOTLIGHT_SOUND_DELAYS_MS = [9650, 14850, 20050];
+const SIX_MONTH_SLIDE_DURATION_MS = 15000;
+const SIX_MONTH_CARD_SOUND_DELAYS_MS = [550, 1170, 1790, 2410, 3030, 3650];
+const SIX_MONTH_SPOTLIGHT_SOUND_DELAYS_MS = [4750, 7550, 10350];
 const WEEKLY_CARD_SEQUENCE_MS = 1000 + (5 * 1400) + 2050;
 const WEEKLY_FINAL_HOLD_MS = 8000;
 const WEEKLY_PERFORMER_SLIDE_DURATION_MS = WEEKLY_CARD_SEQUENCE_MS + WEEKLY_FINAL_HOLD_MS;
-const MISSION_BACKGROUND_SOUND_DELAY_MS = 900;
 const MISSION_CARD_REVEAL_MS = 3450;
 const MISSION_ANIMATION_DURATION_MS = 5600;
-const MISSION_FINAL_HOLD_MS = 10000;
 const SLOW_BATTLE_SLIDE_DURATION_MS = 13000;
-const BATTLE_CARD_POP_DURATION_MS = 1250;
-const COMMISSION_ROLL_DURATION_MS = 8000;
-const COMMISSION_RESULT_HOLD_MS = 8000;
-const COMMISSION_AFTER_REVEAL_DURATION_MS = COMMISSION_ROLL_DURATION_MS + COMMISSION_RESULT_HOLD_MS;
+const COMMISSION_TITLE_FALLBACK_DURATION_MS = 1200;
+const COMMISSION_COUNTING_DURATION_MS = 5000;
+const COMMISSION_FINAL_DISPLAY_MS = 5000;
+const COMMISSION_CASH_SEQUENCE_MS = COMMISSION_COUNTING_DURATION_MS + COMMISSION_FINAL_DISPLAY_MS;
 const LOCAL_STORAGE_KEY = "lesi-achievers-state";
 const MONTHS = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
 const WEEKS = ["1ST WEEK", "2ND WEEK", "3RD WEEK", "4TH WEEK", "5TH WEEK"];
@@ -171,7 +171,7 @@ const isValidCount = value => {
   return Number.isFinite(number) && Number.isInteger(number) && number >= 0;
 };
 
-function validateRankedCounts({ values, expected, slideIndex, label }) {
+function validateRankedCounts({ values, expected, slideIndex, label, enforceRanking = true }) {
   if (values.length !== expected || values.some(isMissingCount)) {
     return {
       slideIndex,
@@ -184,9 +184,11 @@ function validateRankedCounts({ values, expected, slideIndex, label }) {
     return {
       slideIndex,
       title: "INVALID NUMBER",
-      message: `${label}: Please enter valid whole numbers for every rank.`
+      message: `${label}: Please enter valid whole numbers for every ${enforceRanking ? "rank" : "performer"}.`
     };
   }
+
+  if (!enforceRanking) return null;
 
   const counts = values.map(Number);
   const invalidRank = counts.findIndex((count, index) => index > 0 && count > counts[index - 1]);
@@ -204,7 +206,7 @@ function validateRankedCounts({ values, expected, slideIndex, label }) {
 function validatePresentation(state) {
   const performerGroups = [
     { key: "monthly", expected: 5, slideIndex: SLIDE.MONTHLY, label: "Monthly Performers" },
-    { key: "sixMonth", expected: 6, slideIndex: SLIDE.SIX_MONTH, label: "6th Month Performers" },
+    { key: "sixMonth", expected: 6, slideIndex: SLIDE.SIX_MONTH, label: "6th Month Performers", enforceRanking: false },
     { key: "weekly", expected: 5, slideIndex: SLIDE.WEEKLY, label: "Weekly Performers" }
   ];
 
@@ -541,15 +543,14 @@ function RankCard({ member, count, rank, kind = "standard", onReveal }) {
 }
 
 function FlightBoardCard({ member, count, rank }) {
-  const priority = rank <= 3 ? "priority" : "standby";
   const numericCount = count === "" || count === undefined || count === null ? null : Number(count);
   const revealOrder = 6 - rank;
+  const visibility = rank <= 3 ? "priority" : "standby";
 
   return <article
-    className={`flight-board-card flight-rank-${rank} ${priority} reveal flight-card-reveal`}
+    className={`flight-board-card ${visibility} reveal flight-card-reveal`}
     style={{ "--order": revealOrder }}
   >
-    <div className="flight-rank-badge" aria-label={`Rank ${rank}`}><span>{rank}</span></div>
     <div className="flight-photo"><Portrait member={member}/></div>
     <div className="flight-pass-data">
       <h2><StackedName name={member?.name}/></h2>
@@ -563,10 +564,9 @@ function FlightSpotlightCard({ member, count, rank, order }) {
   const numericCount = count === "" || count === undefined || count === null ? null : Number(count);
 
   return <article
-    className={`flight-spotlight-card flight-spotlight-rank-${rank}`}
+    className={`flight-spotlight-card flight-spotlight-rank-${rank} no-place`}
     style={{ "--spotlight-order": order }}
   >
-    <div className="flight-spotlight-rank"><span>{rank}</span><b>{places[rank - 1].label}</b></div>
     <div className="flight-spotlight-photo"><Portrait member={member}/></div>
     <div className="flight-spotlight-copy">
       <small>6TH MONTH PERFORMER</small>
@@ -596,7 +596,7 @@ function SixMonthFlightSlide({ state, list }) {
     <div className="flight-board-grid">
       {performers.map(({ id, member, count }, cardIndex) => <FlightBoardCard member={member} count={count} rank={cardIndex + 1} key={`${id || "empty"}-${cardIndex}`}/>) }
     </div>
-    <div className="flight-top-three-showcase" aria-label="Top three performer spotlight">
+    <div className="flight-top-three-showcase" aria-label="Selected performer spotlight cards">
       {[3, 2, 1].map((rank, order) => {
         const performer = performers[rank - 1] || {};
         return <FlightSpotlightCard
@@ -712,7 +712,11 @@ function ProductsSlide({ state, onCardReveal }) {
   </section>;
 }
 
-function RollingCommissionNumber({ value, replay, durationMs = COMMISSION_ROLL_DURATION_MS }) {
+function RollingCommissionNumber({
+  value,
+  replay,
+  durationMs = COMMISSION_COUNTING_DURATION_MS
+}) {
   const displayValue = String(value || "0");
   const digitCount = displayValue.replace(/\D/g, "").length || 1;
   const digitDurationMs = durationMs / digitCount;
@@ -748,7 +752,11 @@ function RollingCommissionNumber({ value, replay, durationMs = COMMISSION_ROLL_D
   }, [displayValue, replay, digitCount, digitDurationMs]);
 
   let digitIndex = -1;
-  return <div className={`rolling-number ${isRolling ? "is-rolling" : ""}`} aria-label={displayValue}>
+  return <div
+    className={`rolling-number ${isRolling ? "is-rolling" : ""}`}
+    style={{ "--commission-sheen-delay": `${Math.max(0, durationMs - 950)}ms` }}
+    aria-label={displayValue}
+  >
     <span className="sr-only">{displayValue}</span>
     {displayValue.split("").map((character, characterIndex) => {
       if (!/\d/.test(character)) return <span className="odometer-separator" key={`${character}-${characterIndex}`} aria-hidden="true">{character}</span>;
@@ -775,12 +783,15 @@ function RollingCommissionNumber({ value, replay, durationMs = COMMISSION_ROLL_D
   </div>;
 }
 
-function CommissionSlide({ state, replay, revealAmount, rollDurationMs }) {
+function CommissionSlide({ state, replay, revealAmount, rollDurationMs, titleDurationMs }) {
   const currentCommission = Math.max(0, Number(state.sales || 0)) * 300;
 
   return <section className="slide commission-slide supplied-commission-slide animated-slide">
     <div className="commission-slide-content">
-      <h1>YOUR COMMISSION</h1>
+      <h1
+        className="commission-title-pop"
+        style={{ "--commission-title-duration": `${titleDurationMs}ms` }}
+      >YOUR COMMISSION</h1>
       {revealAmount && <div className="commission-value-group is-revealed">
         <div className="supplied-commission-number">
           <RollingCommissionNumber value={currentCommission} replay={replay} durationMs={rollDurationMs}/>
@@ -946,7 +957,7 @@ function FinaleSlide({ state }) {
 
 function Stage({
   index, state, replay, onPerformerCardReveal, onProductCardReveal,
-  revealCommission, commissionRollDuration, showMissionResult
+  revealCommission, commissionRollDuration, commissionTitleDuration, showMissionResult
 }) {
   return <div className={`presentation-stage stage-${index}`} key={`${index}-${replay}`}>
     {index === SLIDE.ACHIEVERS && <IntroSlide />}
@@ -959,13 +970,14 @@ function Stage({
       replay={replay}
       revealAmount={revealCommission}
       rollDurationMs={commissionRollDuration}
+      titleDurationMs={commissionTitleDuration}
     />}
     {index === SLIDE.MISSION && <MissionSlide state={state} showResultCard={showMissionResult} />}
     {index === SLIDE.CONGRATULATIONS && <FinaleSlide state={state} />}
   </div>;
 }
 
-function PerformerEditor({ state, setState, listKey }) {
+function PerformerEditor({ state, setState, listKey, ranked = true }) {
   const selectedIds = state[listKey] || [];
 
   const patchMember = (id, patch) => setState(current => ({
@@ -1010,8 +1022,8 @@ function PerformerEditor({ state, setState, listKey }) {
         const selectedMember = state.members.find(member => member.id === id);
         const countValue = state.slideCounts?.[listKey]?.[id] ?? "";
 
-        return <div className="selected-performer-editor" key={`${listKey}-${index}`}>
-          <b>{index + 1}</b>
+        return <div className={`selected-performer-editor ${ranked ? "" : "no-place"}`} key={`${listKey}-${index}`}>
+          {ranked && <b>{index + 1}</b>}
           <select value={id} onChange={event => updateRank(index, event.target.value)}>
             {state.members.map(member => <option value={member.id} key={member.id}>{member.name}</option>)}
           </select>
@@ -1022,14 +1034,14 @@ function PerformerEditor({ state, setState, listKey }) {
             placeholder="Enter count"
             value={countValue}
             onChange={event => updateSlideCount(id, event.target.value)}
-            aria-label={`${selectedMember?.name || `Rank ${index + 1}`} count for this slide`}
+            aria-label={`${selectedMember?.name || `Performer ${index + 1}`} count for this slide`}
           />
         </div>;
       })}
       <p className="helper">Counts update immediately and belong only to this slide. Empty counts stay blank instead of showing a default zero.</p>
     </div>
 
-    <div className="inspector-section">
+    {ranked && <div className="inspector-section">
       <div className="section-title"><span>Shared performer library</span></div>
       {state.members.map(member => <div className="member-editor library-only" key={member.id}>
         <Portrait member={member}/>
@@ -1038,7 +1050,7 @@ function PerformerEditor({ state, setState, listKey }) {
         </div>
       </div>)}
       <p className="helper">Edit performer names here. Performer images use their fixed asset paths. Selecting a performer already used in another rank automatically swaps the two ranks, so duplicates cannot occur.</p>
-    </div>
+    </div>}
   </>;
 }
 
@@ -1097,12 +1109,11 @@ function Inspector({ index, state, setState, onClose, onSave, saving }) {
     <header><div><small>SLIDE {index + 1} OF 8</small><h2>{slideNames[index]}</h2></div><button onClick={onClose}><X/></button></header>
     <div className="inspector-scroll">
       {(index === SLIDE.WEEKLY || index === SLIDE.MONTHLY || index === SLIDE.SIX_MONTH) && <>
-        <div className="inspector-section">
+        {index !== SLIDE.SIX_MONTH && <div className="inspector-section">
           {index === SLIDE.WEEKLY && <label className="field"><span>Week</span><select value={state.week} onChange={e => update({ week: e.target.value })}>{weekOptions.map(week => <option value={week} key={week}>{week}</option>)}</select></label>}
           {index === SLIDE.MONTHLY && <label className="field"><span>Month</span><select value={state.month} onChange={e => update({ month: e.target.value })}>{MONTHS.map(month => <option value={month} key={month}>{month}</option>)}</select></label>}
-          {index === SLIDE.SIX_MONTH && <label className="field"><span>Flight-board title</span><input value={state.tourTitle} onChange={e => update({ tourTitle: e.target.value.toUpperCase() })}/></label>}
-        </div>
-        <PerformerEditor state={state} setState={setState} listKey={listKey}/>
+        </div>}
+        <PerformerEditor state={state} setState={setState} listKey={listKey} ranked={index !== SLIDE.SIX_MONTH}/>
       </>}
       {index === SLIDE.PRODUCTS && <div className="inspector-section">
         <div className="section-title"><span>Product rankings</span><small>Select rank, product and sales</small></div>
@@ -1195,7 +1206,13 @@ function App() {
   const [missionResultVisible, setMissionResultVisible] = useState(false);
   const [commissionSequence, setCommissionSequence] = useState({
     revealed: false,
-    rollDurationMs: COMMISSION_ROLL_DURATION_MS
+    finished: false,
+    rollDurationMs: COMMISSION_COUNTING_DURATION_MS,
+    titleDurationMs: COMMISSION_TITLE_FALLBACK_DURATION_MS
+  });
+  const [slideAudioSync, setSlideAudioSync] = useState({
+    slideIndex: SLIDE.ACHIEVERS,
+    status: "fallback"
   });
   const stageRef = useRef(null);
   const introAudioRef = useRef(null);
@@ -1203,11 +1220,12 @@ function App() {
   const weeklyAudioRef = useRef(null);
   const travelAudioRef = useRef(null);
   const travelCardAudioRef = useRef(null);
-  const battleBackgroundAudioRef = useRef(null);
+  const travelSpotlightAudioRef = useRef(null);
+  const battleAudioRef = useRef(null);
   const commissionIntroAudioRef = useRef(null);
   const commissionAudioRef = useRef(null);
   const zoneAudioRefs = useRef({});
-  const battleCardPopAudioRef = useRef(null);
+  const battleCardAudioRef = useRef(null);
   const monthlyCardAudioRef = useRef(null);
   const weeklyCardAudioRef = useRef(null);
   const missionCardAudioRef = useRef(null);
@@ -1216,10 +1234,10 @@ function App() {
   const cardSoundInstancesRef = useRef([]);
   const travelCardTimersRef = useRef([]);
   const travelCardInstancesRef = useRef([]);
+  const slideAudioRunRef = useRef(0);
   const commissionRunRef = useRef(0);
   const commissionFallbackTimerRef = useRef(null);
   const missionRunRef = useRef(0);
-  const missionBackgroundTimerRef = useRef(null);
   const missionCardTimerRef = useRef(null);
   const missionAnimationTimerRef = useRef(null);
   const missionAudioFinishedRef = useRef(false);
@@ -1228,8 +1246,6 @@ function App() {
   const soundModeRef = useRef(SOUND_MODES.OFF);
   const playedSoundSlidesRef = useRef(new Set());
   const activeSlideSoundEnabledRef = useRef(false);
-  const activeBackgroundAudioRef = useRef(null);
-  const backgroundStartRequestRef = useRef(0);
 
 
   useEffect(() => {
@@ -1238,7 +1254,8 @@ function App() {
     const weeklyAudio = new Audio(WEEKLY_SOUND);
     const travelAudio = new Audio(TRAVEL_SOUND);
     const travelCardAudio = new Audio(TRAVEL_CARD_SOUND);
-    const battleBackgroundAudio = new Audio(BATTLE_BACKGROUND_SOUND);
+    const travelSpotlightAudio = new Audio(TRAVEL_SPOTLIGHT_SOUND);
+    const battleAudio = new Audio(BATTLE_SOUND);
     const commissionIntroAudio = new Audio(COMMISSION_INTRO_SOUND);
     const commissionAudio = new Audio(COMMISSION_COUNT_SOUND);
     const zoneAudios = {
@@ -1247,7 +1264,7 @@ function App() {
       gold: new Audio(GOLD_ZONE_SOUND),
       mega: new Audio(MEGA_ZONE_SOUND)
     };
-    const battleCardPopAudio = new Audio(BATTLE_CARD_POP_SOUND);
+    const battleCardAudio = new Audio(BATTLE_CARD_SOUND);
     const monthlyCardAudio = new Audio(MONTHLY_CARD_SOUND);
     const weeklyCardAudio = new Audio(WEEKLY_CARD_SOUND);
     const missionCardAudio = new Audio(MISSION_CARD_SOUND);
@@ -1257,7 +1274,8 @@ function App() {
     weeklyAudio.preload = "auto";
     travelAudio.preload = "auto";
     travelCardAudio.preload = "auto";
-    battleBackgroundAudio.preload = "auto";
+    travelSpotlightAudio.preload = "auto";
+    battleAudio.preload = "auto";
     commissionIntroAudio.preload = "auto";
     commissionAudio.preload = "auto";
     commissionIntroAudio.volume = 1;
@@ -1266,15 +1284,15 @@ function App() {
       audio.preload = "auto";
       audio.volume = 1;
     });
-    battleCardPopAudio.preload = "auto";
+    battleCardAudio.preload = "auto";
     monthlyCardAudio.preload = "auto";
     weeklyCardAudio.preload = "auto";
     missionCardAudio.preload = "auto";
     celebrateAudio.preload = "auto";
     [
-      introAudio, monthlyAudio, weeklyAudio, travelAudio, travelCardAudio, battleBackgroundAudio,
+      introAudio, monthlyAudio, weeklyAudio, travelAudio, travelCardAudio, travelSpotlightAudio, battleAudio,
       commissionIntroAudio, commissionAudio, ...Object.values(zoneAudios),
-      battleCardPopAudio, monthlyCardAudio, weeklyCardAudio, missionCardAudio, celebrateAudio
+      battleCardAudio, monthlyCardAudio, weeklyCardAudio, missionCardAudio, celebrateAudio
     ].forEach(audio => {
       audio.muted = mutedRef.current;
     });
@@ -1283,19 +1301,18 @@ function App() {
     weeklyAudioRef.current = weeklyAudio;
     travelAudioRef.current = travelAudio;
     travelCardAudioRef.current = travelCardAudio;
-    battleBackgroundAudioRef.current = battleBackgroundAudio;
+    travelSpotlightAudioRef.current = travelSpotlightAudio;
+    battleAudioRef.current = battleAudio;
     commissionIntroAudioRef.current = commissionIntroAudio;
     commissionAudioRef.current = commissionAudio;
     zoneAudioRefs.current = zoneAudios;
-    battleCardPopAudioRef.current = battleCardPopAudio;
+    battleCardAudioRef.current = battleCardAudio;
     monthlyCardAudioRef.current = monthlyCardAudio;
     weeklyCardAudioRef.current = weeklyCardAudio;
     missionCardAudioRef.current = missionCardAudio;
     celebrateAudioRef.current = celebrateAudio;
 
     return () => {
-      backgroundStartRequestRef.current += 1;
-      activeBackgroundAudioRef.current = null;
       cardSoundTimersRef.current.forEach(timer => window.clearTimeout(timer));
       cardSoundTimersRef.current = [];
       cardSoundInstancesRef.current.forEach(audio => { audio.pause(); audio.currentTime = 0; });
@@ -1307,13 +1324,12 @@ function App() {
         audio.currentTime = 0;
       });
       travelCardInstancesRef.current = [];
-      commissionIntroAudio.onended = null;
       Object.values(zoneAudios).forEach(audio => { audio.onended = null; });
       if (commissionFallbackTimerRef.current) window.clearTimeout(commissionFallbackTimerRef.current);
-      if (missionBackgroundTimerRef.current) window.clearTimeout(missionBackgroundTimerRef.current);
       if (missionCardTimerRef.current) window.clearTimeout(missionCardTimerRef.current);
       if (missionAnimationTimerRef.current) window.clearTimeout(missionAnimationTimerRef.current);
-      [introAudio, monthlyAudio, weeklyAudio, travelAudio, travelCardAudio, battleBackgroundAudio, commissionIntroAudio, commissionAudio, ...Object.values(zoneAudios), battleCardPopAudio, monthlyCardAudio, weeklyCardAudio, missionCardAudio, celebrateAudio].forEach(audio => {
+      [introAudio, monthlyAudio, weeklyAudio, travelAudio, travelCardAudio, travelSpotlightAudio, battleAudio, commissionIntroAudio, commissionAudio, ...Object.values(zoneAudios), battleCardAudio, monthlyCardAudio, weeklyCardAudio, missionCardAudio, celebrateAudio].forEach(audio => {
+        audio.onended = null;
         audio.pause();
         audio.currentTime = 0;
       });
@@ -1322,11 +1338,12 @@ function App() {
       weeklyAudioRef.current = null;
       travelAudioRef.current = null;
       travelCardAudioRef.current = null;
-      battleBackgroundAudioRef.current = null;
+      travelSpotlightAudioRef.current = null;
+      battleAudioRef.current = null;
       commissionIntroAudioRef.current = null;
       commissionAudioRef.current = null;
       zoneAudioRefs.current = {};
-      battleCardPopAudioRef.current = null;
+      battleCardAudioRef.current = null;
       monthlyCardAudioRef.current = null;
       weeklyCardAudioRef.current = null;
       missionCardAudioRef.current = null;
@@ -1343,11 +1360,12 @@ function App() {
       weeklyAudioRef.current,
       travelAudioRef.current,
       travelCardAudioRef.current,
-      battleBackgroundAudioRef.current,
+      travelSpotlightAudioRef.current,
+      battleAudioRef.current,
       commissionIntroAudioRef.current,
       commissionAudioRef.current,
       ...Object.values(zoneAudioRefs.current),
-      battleCardPopAudioRef.current,
+      battleCardAudioRef.current,
       monthlyCardAudioRef.current,
       weeklyCardAudioRef.current,
       missionCardAudioRef.current,
@@ -1369,36 +1387,16 @@ function App() {
     cardSoundInstancesRef.current = [];
   };
 
-  const playCardSound = (source, { maxDurationMs = null } = {}) => {
+  const playCardSound = source => {
     if (!source) return;
 
     const cardAudio = source.cloneNode();
     cardAudio.currentTime = 0;
     cardAudio.muted = mutedRef.current;
-    cardAudio.loop = false;
     cardSoundInstancesRef.current.push(cardAudio);
     cardAudio.play().catch(() => {});
-
-    const removeCardAudio = () => {
-      cardSoundInstancesRef.current = cardSoundInstancesRef.current.filter(item => item !== cardAudio);
-    };
-
-    let stopTimer = null;
-    if (Number.isFinite(maxDurationMs) && maxDurationMs > 0) {
-      stopTimer = window.setTimeout(() => {
-        cardAudio.pause();
-        cardAudio.currentTime = 0;
-        removeCardAudio();
-      }, maxDurationMs);
-      cardSoundTimersRef.current.push(stopTimer);
-    }
-
     cardAudio.addEventListener("ended", () => {
-      if (stopTimer) {
-        window.clearTimeout(stopTimer);
-        cardSoundTimersRef.current = cardSoundTimersRef.current.filter(timer => timer !== stopTimer);
-      }
-      removeCardAudio();
+      cardSoundInstancesRef.current = cardSoundInstancesRef.current.filter(item => item !== cardAudio);
     }, { once: true });
   };
 
@@ -1418,19 +1416,11 @@ function App() {
     travelCardInstancesRef.current = [];
   };
 
-  const stopAudioPlayback = audio => {
-    if (!audio) return;
-    audio.onended = null;
-    audio.pause();
-    audio.currentTime = 0;
-    audio.loop = false;
-  };
-
-  const resetSlideSoundLifecycle = ({ preserveBackground = false } = {}) => {
+  const stopAllSounds = () => {
     clearTravelCardSounds();
     clearCardSounds();
-    backgroundStartRequestRef.current += 1;
     activeSlideSoundEnabledRef.current = false;
+    slideAudioRunRef.current += 1;
     commissionRunRef.current += 1;
     missionRunRef.current += 1;
     missionAudioFinishedRef.current = false;
@@ -1445,96 +1435,36 @@ function App() {
       window.clearTimeout(commissionFallbackTimerRef.current);
       commissionFallbackTimerRef.current = null;
     }
-    if (missionBackgroundTimerRef.current) {
-      window.clearTimeout(missionBackgroundTimerRef.current);
-      missionBackgroundTimerRef.current = null;
-    }
     if (missionCardTimerRef.current) {
       window.clearTimeout(missionCardTimerRef.current);
       missionCardTimerRef.current = null;
     }
-    if (commissionIntroAudioRef.current) commissionIntroAudioRef.current.onended = null;
     Object.values(zoneAudioRefs.current).forEach(audio => {
       if (audio) audio.onended = null;
     });
-
-    const preservedBackground = preserveBackground
-      ? activeBackgroundAudioRef.current
-      : null;
-
-    [introAudioRef.current, monthlyAudioRef.current, weeklyAudioRef.current, travelAudioRef.current, battleBackgroundAudioRef.current, commissionIntroAudioRef.current, commissionAudioRef.current, celebrateAudioRef.current, ...Object.values(zoneAudioRefs.current)].forEach(audio => {
+    [
+      introAudioRef.current,
+      monthlyAudioRef.current,
+      weeklyAudioRef.current,
+      travelAudioRef.current,
+      travelSpotlightAudioRef.current,
+      battleAudioRef.current,
+      commissionIntroAudioRef.current,
+      commissionAudioRef.current,
+      celebrateAudioRef.current,
+      ...Object.values(zoneAudioRefs.current)
+    ].forEach(audio => {
       if (!audio) return;
-      if (audio === preservedBackground) {
-        audio.onended = null;
-        audio.loop = true;
-        return;
-      }
-      stopAudioPlayback(audio);
+      audio.onended = null;
+      audio.pause();
+      audio.currentTime = 0;
+      audio.loop = false;
     });
-    activeBackgroundAudioRef.current = preservedBackground;
-  };
-
-  const stopAllSounds = () => {
-    resetSlideSoundLifecycle();
-  };
-
-  const startBackgroundAudio = (
-    audio,
-    {
-      loop = true,
-      onEnded = null,
-      onStarted = null,
-      onError = null
-    } = {}
-  ) => {
-    if (!audio) {
-      if (onError) onError();
-      return;
-    }
-
-    const requestId = ++backgroundStartRequestRef.current;
-    const previousBackground = activeBackgroundAudioRef.current;
-
-    audio.muted = mutedRef.current;
-    audio.loop = loop;
-    audio.onended = onEnded;
-    audio.currentTime = 0;
-
-    const finishHandoff = () => {
-      if (backgroundStartRequestRef.current !== requestId) {
-        if (audio !== activeBackgroundAudioRef.current) stopAudioPlayback(audio);
-        return;
-      }
-
-      if (previousBackground && previousBackground !== audio) {
-        stopAudioPlayback(previousBackground);
-      }
-      activeBackgroundAudioRef.current = audio;
-      if (onStarted) onStarted();
-    };
-
-    const handlePlaybackError = () => {
-      if (backgroundStartRequestRef.current !== requestId) return;
-      if (audio !== previousBackground) stopAudioPlayback(audio);
-      if (onError) onError();
-    };
-
-    try {
-      const playRequest = audio.play();
-      if (playRequest && typeof playRequest.then === "function") {
-        playRequest.then(finishHandoff).catch(handlePlaybackError);
-      } else {
-        finishHandoff();
-      }
-    } catch (error) {
-      handlePlaybackError();
-    }
   };
 
   const scheduleTravelCardSounds = () => {
     clearTravelCardSounds();
-    const delays = [1000, 2300, 3600, 4900, 6200, 7500];
-    travelCardTimersRef.current = delays.map(delay => window.setTimeout(() => {
+    travelCardTimersRef.current = SIX_MONTH_CARD_SOUND_DELAYS_MS.map(delay => window.setTimeout(() => {
       const source = travelCardAudioRef.current;
       if (!source) return;
       const cardAudio = source.cloneNode();
@@ -1549,6 +1479,8 @@ function App() {
   };
 
   const playSoundForSlide = (slideIndex, requestedSoundMode = soundModeRef.current) => {
+    stopAllSounds();
+    const slideAudioRunId = ++slideAudioRunRef.current;
     let audioAllowed = requestedSoundMode !== SOUND_MODES.OFF;
     if (requestedSoundMode === SOUND_MODES.ONCE) {
       if (playedSoundSlidesRef.current.has(slideIndex)) {
@@ -1557,14 +1489,13 @@ function App() {
         playedSoundSlidesRef.current.add(slideIndex);
       }
     }
-
-    resetSlideSoundLifecycle({ preserveBackground: audioAllowed });
     activeSlideSoundEnabledRef.current = audioAllowed;
+    setSlideAudioSync({ slideIndex, status: "fallback" });
 
     if (slideIndex === SLIDE.MISSION) {
       const runId = ++missionRunRef.current;
       const zoneAudio = zoneAudioRefs.current[zoneFor(state.sales).key];
-      missionAudioFinishedRef.current = false;
+      missionAudioFinishedRef.current = !audioAllowed || !zoneAudio;
       missionAnimationFinishedRef.current = false;
       setMissionSequenceComplete(false);
       setMissionResultVisible(false);
@@ -1585,11 +1516,6 @@ function App() {
         if (audioAllowed && missionCardAudioRef.current) {
           playCardSound(missionCardAudioRef.current);
         }
-        missionAudioFinishedRef.current = true;
-        if (zoneAudio) zoneAudio.onended = null;
-        if (audioAllowed && zoneAudio) {
-          startBackgroundAudio(zoneAudio, { loop: true });
-        }
         completeMissionWhenReady();
       };
 
@@ -1600,22 +1526,26 @@ function App() {
         completeMissionWhenReady();
       }, MISSION_ANIMATION_DURATION_MS);
 
+      missionCardTimerRef.current = window.setTimeout(() => {
+        if (missionRunRef.current !== runId) return;
+        missionCardTimerRef.current = null;
+        revealMissionResult();
+      }, MISSION_CARD_REVEAL_MS);
+
       if (audioAllowed && zoneAudio) {
-        missionBackgroundTimerRef.current = window.setTimeout(() => {
+        const finishMissionAudio = () => {
           if (missionRunRef.current !== runId) return;
-          missionBackgroundTimerRef.current = null;
-          startBackgroundAudio(zoneAudio, {
-            loop: false,
-            onEnded: revealMissionResult,
-            onError: revealMissionResult
-          });
-        }, MISSION_BACKGROUND_SOUND_DELAY_MS);
+          zoneAudio.onended = null;
+          missionAudioFinishedRef.current = true;
+          completeMissionWhenReady();
+        };
+
+        zoneAudio.currentTime = 0;
+        zoneAudio.loop = false;
+        zoneAudio.onended = finishMissionAudio;
+        zoneAudio.play().catch(finishMissionAudio);
       } else {
-        missionCardTimerRef.current = window.setTimeout(() => {
-          if (missionRunRef.current !== runId) return;
-          missionCardTimerRef.current = null;
-          revealMissionResult();
-        }, MISSION_CARD_REVEAL_MS);
+        completeMissionWhenReady();
       }
       return;
     }
@@ -1623,39 +1553,85 @@ function App() {
     if (slideIndex === SLIDE.COMMISSION) {
       const runId = ++commissionRunRef.current;
       const introAudio = commissionIntroAudioRef.current;
+      const countAudio = commissionAudioRef.current;
+      const titleDurationMs = introAudio && Number.isFinite(introAudio.duration) && introAudio.duration > 0
+        ? Math.round(introAudio.duration * 1000)
+        : COMMISSION_TITLE_FALLBACK_DURATION_MS;
 
       setCommissionSequence({
         revealed: false,
-        rollDurationMs: COMMISSION_ROLL_DURATION_MS
+        finished: false,
+        rollDurationMs: COMMISSION_COUNTING_DURATION_MS,
+        titleDurationMs
       });
 
-      const startCommissionCount = () => {
+      const finishCommission = () => {
         if (commissionRunRef.current !== runId) return;
+        if (commissionFallbackTimerRef.current) {
+          window.clearTimeout(commissionFallbackTimerRef.current);
+          commissionFallbackTimerRef.current = null;
+        }
+        if (countAudio) {
+          countAudio.onended = null;
+          countAudio.pause();
+          countAudio.currentTime = 0;
+          countAudio.loop = false;
+        }
+        setCommissionSequence(current => ({ ...current, finished: true }));
+      };
+
+      let countStarted = false;
+      const startCommissionCount = () => {
+        if (commissionRunRef.current !== runId || countStarted) return;
+        countStarted = true;
         if (commissionFallbackTimerRef.current) {
           window.clearTimeout(commissionFallbackTimerRef.current);
           commissionFallbackTimerRef.current = null;
         }
         if (introAudio) introAudio.onended = null;
 
-        const rollDurationMs = COMMISSION_ROLL_DURATION_MS;
-        setCommissionSequence({ revealed: true, rollDurationMs });
+        const hasAudioDuration = Boolean(
+          countAudio && Number.isFinite(countAudio.duration) && countAudio.duration > 0
+        );
+        const audioDurationMs = hasAudioDuration
+          ? Math.round(countAudio.duration * 1000)
+          : COMMISSION_CASH_SEQUENCE_MS;
+        const sequenceDurationMs = COMMISSION_CASH_SEQUENCE_MS;
+        const rollDurationMs = COMMISSION_COUNTING_DURATION_MS;
+        setCommissionSequence(current => ({
+          ...current,
+          revealed: true,
+          finished: false,
+          rollDurationMs
+        }));
 
-        const countAudio = commissionAudioRef.current;
         if (audioAllowed && countAudio) {
-          startBackgroundAudio(countAudio, { loop: true });
+          countAudio.currentTime = 0;
+          countAudio.loop = !hasAudioDuration || audioDurationMs < sequenceDurationMs;
+          countAudio.onended = countAudio.loop ? null : finishCommission;
+          commissionFallbackTimerRef.current = window.setTimeout(
+            finishCommission,
+            sequenceDurationMs
+          );
+          countAudio.play().catch(() => {});
+        } else {
+          commissionFallbackTimerRef.current = window.setTimeout(
+            finishCommission,
+            sequenceDurationMs
+          );
         }
       };
 
       if (audioAllowed && introAudio) {
-        startBackgroundAudio(introAudio, {
-          loop: false,
-          onEnded: startCommissionCount,
-          onError: () => {
-            commissionFallbackTimerRef.current = window.setTimeout(startCommissionCount, 500);
-          }
-        });
+        introAudio.currentTime = 0;
+        introAudio.loop = false;
+        introAudio.onended = startCommissionCount;
+        introAudio.play().catch(startCommissionCount);
       } else {
-        commissionFallbackTimerRef.current = window.setTimeout(startCommissionCount, 500);
+        commissionFallbackTimerRef.current = window.setTimeout(
+          startCommissionCount,
+          COMMISSION_TITLE_FALLBACK_DURATION_MS
+        );
       }
       return;
     }
@@ -1665,7 +1641,7 @@ function App() {
       : slideIndex === SLIDE.WEEKLY
         ? weeklyAudioRef.current
         : slideIndex === SLIDE.PRODUCTS
-          ? battleBackgroundAudioRef.current
+          ? battleAudioRef.current
           : slideIndex === SLIDE.MONTHLY
             ? monthlyAudioRef.current
             : slideIndex === SLIDE.SIX_MONTH
@@ -1673,14 +1649,34 @@ function App() {
               : slideIndex === SLIDE.CONGRATULATIONS
               ? celebrateAudioRef.current
               : null;
+    const synchronizedToBackground = [
+      SLIDE.WEEKLY,
+      SLIDE.PRODUCTS,
+      SLIDE.MONTHLY,
+      SLIDE.SIX_MONTH
+    ].includes(slideIndex);
+
+    if (synchronizedToBackground && audioAllowed && audio) {
+      setSlideAudioSync({ slideIndex, status: "playing" });
+      audio.onended = () => {
+        if (slideAudioRunRef.current !== slideAudioRunId) return;
+        audio.onended = null;
+        setSlideAudioSync({ slideIndex, status: "finished" });
+      };
+    }
+
     if (audioAllowed && audio) {
-      startBackgroundAudio(audio, {
-        loop: slideIndex !== SLIDE.PRODUCTS
+      audio.currentTime = 0;
+      audio.loop = false;
+      audio.play().catch(() => {
+        if (slideAudioRunRef.current !== slideAudioRunId) return;
+        audio.onended = null;
+        setSlideAudioSync({ slideIndex, status: "fallback" });
       });
     }
     if (audioAllowed && slideIndex === SLIDE.SIX_MONTH) {
       scheduleTravelCardSounds();
-      scheduleCardSounds(missionCardAudioRef.current, SIX_MONTH_SPOTLIGHT_SOUND_DELAYS_MS);
+      scheduleCardSounds(travelSpotlightAudioRef.current, SIX_MONTH_SPOTLIGHT_SOUND_DELAYS_MS);
     }
   };
 
@@ -1691,30 +1687,20 @@ function App() {
 
   const handleProductCardReveal = () => {
     if (!started || mode !== "present" || paused || !activeSlideSoundEnabledRef.current) return;
-    playCardSound(battleCardPopAudioRef.current, {
-      maxDurationMs: BATTLE_CARD_POP_DURATION_MS
-    });
+    playCardSound(battleCardAudioRef.current);
   };
 
   const cycleSoundMode = () => {
-    const previous = soundModeRef.current;
-    const next = previous === SOUND_MODES.OFF
+    const next = soundModeRef.current === SOUND_MODES.OFF
       ? SOUND_MODES.REPEAT
-      : previous === SOUND_MODES.REPEAT
+      : soundModeRef.current === SOUND_MODES.REPEAT
         ? SOUND_MODES.ONCE
         : SOUND_MODES.OFF;
     soundModeRef.current = next;
     mutedRef.current = next === SOUND_MODES.OFF;
-    if (next === SOUND_MODES.ONCE) {
-      playedSoundSlidesRef.current.clear();
-      if (started && mode === "present") playedSoundSlidesRef.current.add(index);
-    }
+    if (next === SOUND_MODES.ONCE) playedSoundSlidesRef.current.clear();
     setSoundMode(next);
-    if (next === SOUND_MODES.OFF) {
-      stopAllSounds();
-    } else if (previous === SOUND_MODES.OFF && started && mode === "present" && !paused) {
-      playSoundForSlide(index, next);
-    }
+    if (next === SOUND_MODES.OFF) stopAllSounds();
   };
 
   const togglePause = () => {
@@ -1723,7 +1709,18 @@ function App() {
       if (next) {
         clearTravelCardSounds();
         clearCardSounds();
-        [introAudioRef.current, monthlyAudioRef.current, weeklyAudioRef.current, travelAudioRef.current, battleBackgroundAudioRef.current, commissionIntroAudioRef.current, commissionAudioRef.current, celebrateAudioRef.current, ...Object.values(zoneAudioRefs.current)].forEach(audio => audio?.pause());
+        [
+          introAudioRef.current,
+          monthlyAudioRef.current,
+          weeklyAudioRef.current,
+          travelAudioRef.current,
+          travelSpotlightAudioRef.current,
+          battleAudioRef.current,
+          commissionIntroAudioRef.current,
+          commissionAudioRef.current,
+          celebrateAudioRef.current,
+          ...Object.values(zoneAudioRefs.current)
+        ].forEach(audio => audio?.pause());
       } else if (started && mode === "present") {
         setReplay(value => value + 1);
         playSoundForSlide(index);
@@ -1815,22 +1812,38 @@ function App() {
 
   useEffect(() => {
     if (!started || mode !== "present" || paused) return undefined;
-    if (index === SLIDE.COMMISSION && !commissionSequence.revealed) return undefined;
-    if (index === SLIDE.MISSION && !missionSequenceComplete) return undefined;
+    const synchronizedSlides = [
+      SLIDE.WEEKLY,
+      SLIDE.PRODUCTS,
+      SLIDE.MONTHLY,
+      SLIDE.SIX_MONTH
+    ];
 
-    const duration = index === SLIDE.PRODUCTS
-      ? SLOW_BATTLE_SLIDE_DURATION_MS
-      : index === SLIDE.COMMISSION
-        ? COMMISSION_AFTER_REVEAL_DURATION_MS
-        : index === SLIDE.MISSION
-          ? MISSION_FINAL_HOLD_MS
+    let duration;
+    if (index === SLIDE.COMMISSION) {
+      if (!commissionSequence.finished) return undefined;
+      duration = 0;
+    } else if (index === SLIDE.MISSION) {
+      if (!missionSequenceComplete) return undefined;
+      duration = 0;
+    } else if (synchronizedSlides.includes(index)) {
+      if (slideAudioSync.slideIndex !== index) return undefined;
+      if (slideAudioSync.status === "playing") return undefined;
+      if (slideAudioSync.status === "finished") {
+        duration = 0;
+      } else {
+        duration = index === SLIDE.PRODUCTS
+          ? SLOW_BATTLE_SLIDE_DURATION_MS
           : index === SLIDE.WEEKLY
             ? WEEKLY_PERFORMER_SLIDE_DURATION_MS
             : index === SLIDE.SIX_MONTH
               ? SIX_MONTH_SLIDE_DURATION_MS
-              : index === SLIDE.MONTHLY
-              ? SLOW_PERFORMER_SLIDE_DURATION_MS
-              : DEFAULT_SLIDE_DURATION_MS;
+              : SLOW_PERFORMER_SLIDE_DURATION_MS;
+      }
+    } else {
+      duration = DEFAULT_SLIDE_DURATION_MS;
+    }
+
     const timer = window.setTimeout(() => {
       const next = (index + 1) % slideNames.length;
       setIndex(next);
@@ -1840,7 +1853,16 @@ function App() {
     }, duration);
 
     return () => window.clearTimeout(timer);
-  }, [started, mode, index, replay, paused, commissionSequence.revealed, missionSequenceComplete]);
+  }, [
+    started,
+    mode,
+    index,
+    replay,
+    paused,
+    commissionSequence.finished,
+    missionSequenceComplete,
+    slideAudioSync
+  ]);
 
   useEffect(() => {
     const key = event => {
@@ -1896,6 +1918,7 @@ function App() {
           onProductCardReveal={handleProductCardReveal}
           revealCommission={commissionSequence.revealed}
           commissionRollDuration={commissionSequence.rollDurationMs}
+          commissionTitleDuration={commissionSequence.titleDurationMs}
           showMissionResult={mode !== "present" || missionResultVisible}
         />
         <div className="present-controls">
