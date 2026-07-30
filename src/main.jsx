@@ -12,8 +12,8 @@ const MONTHLY_SOUND = `${ASSET}/sounds/Monthlyperformerce.mp3`;
 const WEEKLY_SOUND = `${ASSET}/sounds/Weeklyperfrmer.mp3`;
 const TRAVEL_SOUND = `${ASSET}/sounds/Travel.mp3`;
 const TRAVEL_CARD_SOUND = `${ASSET}/sounds/travelcard.mp3`;
-const BATTLE_SOUND = `${ASSET}/sounds/Battle.mp3`;
-const BATTLE_CARD_SOUND = `${ASSET}/sounds/Battlewosh.mp3`;
+const BATTLE_BACKGROUND_SOUND = `${ASSET}/sounds/Battlebackround.mp3`;
+const BATTLE_CARD_POP_SOUND = `${ASSET}/sounds/Battle.mp3`;
 const MONTHLY_CARD_SOUND = `${ASSET}/sounds/Monthlywosh.mp3`;
 const WEEKLY_CARD_SOUND = `${ASSET}/sounds/weekwoosh.mp3`;
 const COMMISSION_INTRO_SOUND = `${ASSET}/sounds/ganata.mp3`;
@@ -36,6 +36,7 @@ const MISSION_CARD_REVEAL_MS = 3450;
 const MISSION_ANIMATION_DURATION_MS = 5600;
 const MISSION_FINAL_HOLD_MS = 10000;
 const SLOW_BATTLE_SLIDE_DURATION_MS = 13000;
+const BATTLE_CARD_POP_DURATION_MS = 1250;
 const COMMISSION_ROLL_DURATION_MS = 8000;
 const COMMISSION_RESULT_HOLD_MS = 8000;
 const COMMISSION_AFTER_REVEAL_DURATION_MS = COMMISSION_ROLL_DURATION_MS + COMMISSION_RESULT_HOLD_MS;
@@ -1202,11 +1203,11 @@ function App() {
   const weeklyAudioRef = useRef(null);
   const travelAudioRef = useRef(null);
   const travelCardAudioRef = useRef(null);
-  const battleAudioRef = useRef(null);
+  const battleBackgroundAudioRef = useRef(null);
   const commissionIntroAudioRef = useRef(null);
   const commissionAudioRef = useRef(null);
   const zoneAudioRefs = useRef({});
-  const battleCardAudioRef = useRef(null);
+  const battleCardPopAudioRef = useRef(null);
   const monthlyCardAudioRef = useRef(null);
   const weeklyCardAudioRef = useRef(null);
   const missionCardAudioRef = useRef(null);
@@ -1217,7 +1218,6 @@ function App() {
   const travelCardInstancesRef = useRef([]);
   const commissionRunRef = useRef(0);
   const commissionFallbackTimerRef = useRef(null);
-  const commissionCountStopTimerRef = useRef(null);
   const missionRunRef = useRef(0);
   const missionBackgroundTimerRef = useRef(null);
   const missionCardTimerRef = useRef(null);
@@ -1228,6 +1228,8 @@ function App() {
   const soundModeRef = useRef(SOUND_MODES.OFF);
   const playedSoundSlidesRef = useRef(new Set());
   const activeSlideSoundEnabledRef = useRef(false);
+  const activeBackgroundAudioRef = useRef(null);
+  const backgroundStartRequestRef = useRef(0);
 
 
   useEffect(() => {
@@ -1236,7 +1238,7 @@ function App() {
     const weeklyAudio = new Audio(WEEKLY_SOUND);
     const travelAudio = new Audio(TRAVEL_SOUND);
     const travelCardAudio = new Audio(TRAVEL_CARD_SOUND);
-    const battleAudio = new Audio(BATTLE_SOUND);
+    const battleBackgroundAudio = new Audio(BATTLE_BACKGROUND_SOUND);
     const commissionIntroAudio = new Audio(COMMISSION_INTRO_SOUND);
     const commissionAudio = new Audio(COMMISSION_COUNT_SOUND);
     const zoneAudios = {
@@ -1245,7 +1247,7 @@ function App() {
       gold: new Audio(GOLD_ZONE_SOUND),
       mega: new Audio(MEGA_ZONE_SOUND)
     };
-    const battleCardAudio = new Audio(BATTLE_CARD_SOUND);
+    const battleCardPopAudio = new Audio(BATTLE_CARD_POP_SOUND);
     const monthlyCardAudio = new Audio(MONTHLY_CARD_SOUND);
     const weeklyCardAudio = new Audio(WEEKLY_CARD_SOUND);
     const missionCardAudio = new Audio(MISSION_CARD_SOUND);
@@ -1255,7 +1257,7 @@ function App() {
     weeklyAudio.preload = "auto";
     travelAudio.preload = "auto";
     travelCardAudio.preload = "auto";
-    battleAudio.preload = "auto";
+    battleBackgroundAudio.preload = "auto";
     commissionIntroAudio.preload = "auto";
     commissionAudio.preload = "auto";
     commissionIntroAudio.volume = 1;
@@ -1264,15 +1266,15 @@ function App() {
       audio.preload = "auto";
       audio.volume = 1;
     });
-    battleCardAudio.preload = "auto";
+    battleCardPopAudio.preload = "auto";
     monthlyCardAudio.preload = "auto";
     weeklyCardAudio.preload = "auto";
     missionCardAudio.preload = "auto";
     celebrateAudio.preload = "auto";
     [
-      introAudio, monthlyAudio, weeklyAudio, travelAudio, travelCardAudio, battleAudio,
+      introAudio, monthlyAudio, weeklyAudio, travelAudio, travelCardAudio, battleBackgroundAudio,
       commissionIntroAudio, commissionAudio, ...Object.values(zoneAudios),
-      battleCardAudio, monthlyCardAudio, weeklyCardAudio, missionCardAudio, celebrateAudio
+      battleCardPopAudio, monthlyCardAudio, weeklyCardAudio, missionCardAudio, celebrateAudio
     ].forEach(audio => {
       audio.muted = mutedRef.current;
     });
@@ -1281,17 +1283,19 @@ function App() {
     weeklyAudioRef.current = weeklyAudio;
     travelAudioRef.current = travelAudio;
     travelCardAudioRef.current = travelCardAudio;
-    battleAudioRef.current = battleAudio;
+    battleBackgroundAudioRef.current = battleBackgroundAudio;
     commissionIntroAudioRef.current = commissionIntroAudio;
     commissionAudioRef.current = commissionAudio;
     zoneAudioRefs.current = zoneAudios;
-    battleCardAudioRef.current = battleCardAudio;
+    battleCardPopAudioRef.current = battleCardPopAudio;
     monthlyCardAudioRef.current = monthlyCardAudio;
     weeklyCardAudioRef.current = weeklyCardAudio;
     missionCardAudioRef.current = missionCardAudio;
     celebrateAudioRef.current = celebrateAudio;
 
     return () => {
+      backgroundStartRequestRef.current += 1;
+      activeBackgroundAudioRef.current = null;
       cardSoundTimersRef.current.forEach(timer => window.clearTimeout(timer));
       cardSoundTimersRef.current = [];
       cardSoundInstancesRef.current.forEach(audio => { audio.pause(); audio.currentTime = 0; });
@@ -1306,11 +1310,10 @@ function App() {
       commissionIntroAudio.onended = null;
       Object.values(zoneAudios).forEach(audio => { audio.onended = null; });
       if (commissionFallbackTimerRef.current) window.clearTimeout(commissionFallbackTimerRef.current);
-      if (commissionCountStopTimerRef.current) window.clearTimeout(commissionCountStopTimerRef.current);
       if (missionBackgroundTimerRef.current) window.clearTimeout(missionBackgroundTimerRef.current);
       if (missionCardTimerRef.current) window.clearTimeout(missionCardTimerRef.current);
       if (missionAnimationTimerRef.current) window.clearTimeout(missionAnimationTimerRef.current);
-      [introAudio, monthlyAudio, weeklyAudio, travelAudio, travelCardAudio, battleAudio, commissionIntroAudio, commissionAudio, ...Object.values(zoneAudios), battleCardAudio, monthlyCardAudio, weeklyCardAudio, missionCardAudio, celebrateAudio].forEach(audio => {
+      [introAudio, monthlyAudio, weeklyAudio, travelAudio, travelCardAudio, battleBackgroundAudio, commissionIntroAudio, commissionAudio, ...Object.values(zoneAudios), battleCardPopAudio, monthlyCardAudio, weeklyCardAudio, missionCardAudio, celebrateAudio].forEach(audio => {
         audio.pause();
         audio.currentTime = 0;
       });
@@ -1319,11 +1322,11 @@ function App() {
       weeklyAudioRef.current = null;
       travelAudioRef.current = null;
       travelCardAudioRef.current = null;
-      battleAudioRef.current = null;
+      battleBackgroundAudioRef.current = null;
       commissionIntroAudioRef.current = null;
       commissionAudioRef.current = null;
       zoneAudioRefs.current = {};
-      battleCardAudioRef.current = null;
+      battleCardPopAudioRef.current = null;
       monthlyCardAudioRef.current = null;
       weeklyCardAudioRef.current = null;
       missionCardAudioRef.current = null;
@@ -1340,11 +1343,11 @@ function App() {
       weeklyAudioRef.current,
       travelAudioRef.current,
       travelCardAudioRef.current,
-      battleAudioRef.current,
+      battleBackgroundAudioRef.current,
       commissionIntroAudioRef.current,
       commissionAudioRef.current,
       ...Object.values(zoneAudioRefs.current),
-      battleCardAudioRef.current,
+      battleCardPopAudioRef.current,
       monthlyCardAudioRef.current,
       weeklyCardAudioRef.current,
       missionCardAudioRef.current,
@@ -1366,16 +1369,36 @@ function App() {
     cardSoundInstancesRef.current = [];
   };
 
-  const playCardSound = source => {
+  const playCardSound = (source, { maxDurationMs = null } = {}) => {
     if (!source) return;
 
     const cardAudio = source.cloneNode();
     cardAudio.currentTime = 0;
     cardAudio.muted = mutedRef.current;
+    cardAudio.loop = false;
     cardSoundInstancesRef.current.push(cardAudio);
     cardAudio.play().catch(() => {});
-    cardAudio.addEventListener("ended", () => {
+
+    const removeCardAudio = () => {
       cardSoundInstancesRef.current = cardSoundInstancesRef.current.filter(item => item !== cardAudio);
+    };
+
+    let stopTimer = null;
+    if (Number.isFinite(maxDurationMs) && maxDurationMs > 0) {
+      stopTimer = window.setTimeout(() => {
+        cardAudio.pause();
+        cardAudio.currentTime = 0;
+        removeCardAudio();
+      }, maxDurationMs);
+      cardSoundTimersRef.current.push(stopTimer);
+    }
+
+    cardAudio.addEventListener("ended", () => {
+      if (stopTimer) {
+        window.clearTimeout(stopTimer);
+        cardSoundTimersRef.current = cardSoundTimersRef.current.filter(timer => timer !== stopTimer);
+      }
+      removeCardAudio();
     }, { once: true });
   };
 
@@ -1395,9 +1418,18 @@ function App() {
     travelCardInstancesRef.current = [];
   };
 
-  const stopAllSounds = () => {
+  const stopAudioPlayback = audio => {
+    if (!audio) return;
+    audio.onended = null;
+    audio.pause();
+    audio.currentTime = 0;
+    audio.loop = false;
+  };
+
+  const resetSlideSoundLifecycle = ({ preserveBackground = false } = {}) => {
     clearTravelCardSounds();
     clearCardSounds();
+    backgroundStartRequestRef.current += 1;
     activeSlideSoundEnabledRef.current = false;
     commissionRunRef.current += 1;
     missionRunRef.current += 1;
@@ -1413,10 +1445,6 @@ function App() {
       window.clearTimeout(commissionFallbackTimerRef.current);
       commissionFallbackTimerRef.current = null;
     }
-    if (commissionCountStopTimerRef.current) {
-      window.clearTimeout(commissionCountStopTimerRef.current);
-      commissionCountStopTimerRef.current = null;
-    }
     if (missionBackgroundTimerRef.current) {
       window.clearTimeout(missionBackgroundTimerRef.current);
       missionBackgroundTimerRef.current = null;
@@ -1429,12 +1457,78 @@ function App() {
     Object.values(zoneAudioRefs.current).forEach(audio => {
       if (audio) audio.onended = null;
     });
-    [introAudioRef.current, monthlyAudioRef.current, weeklyAudioRef.current, travelAudioRef.current, battleAudioRef.current, commissionIntroAudioRef.current, commissionAudioRef.current, celebrateAudioRef.current, ...Object.values(zoneAudioRefs.current)].forEach(audio => {
+
+    const preservedBackground = preserveBackground
+      ? activeBackgroundAudioRef.current
+      : null;
+
+    [introAudioRef.current, monthlyAudioRef.current, weeklyAudioRef.current, travelAudioRef.current, battleBackgroundAudioRef.current, commissionIntroAudioRef.current, commissionAudioRef.current, celebrateAudioRef.current, ...Object.values(zoneAudioRefs.current)].forEach(audio => {
       if (!audio) return;
-      audio.pause();
-      audio.currentTime = 0;
-      audio.loop = false;
+      if (audio === preservedBackground) {
+        audio.onended = null;
+        audio.loop = true;
+        return;
+      }
+      stopAudioPlayback(audio);
     });
+    activeBackgroundAudioRef.current = preservedBackground;
+  };
+
+  const stopAllSounds = () => {
+    resetSlideSoundLifecycle();
+  };
+
+  const startBackgroundAudio = (
+    audio,
+    {
+      loop = true,
+      onEnded = null,
+      onStarted = null,
+      onError = null
+    } = {}
+  ) => {
+    if (!audio) {
+      if (onError) onError();
+      return;
+    }
+
+    const requestId = ++backgroundStartRequestRef.current;
+    const previousBackground = activeBackgroundAudioRef.current;
+
+    audio.muted = mutedRef.current;
+    audio.loop = loop;
+    audio.onended = onEnded;
+    audio.currentTime = 0;
+
+    const finishHandoff = () => {
+      if (backgroundStartRequestRef.current !== requestId) {
+        if (audio !== activeBackgroundAudioRef.current) stopAudioPlayback(audio);
+        return;
+      }
+
+      if (previousBackground && previousBackground !== audio) {
+        stopAudioPlayback(previousBackground);
+      }
+      activeBackgroundAudioRef.current = audio;
+      if (onStarted) onStarted();
+    };
+
+    const handlePlaybackError = () => {
+      if (backgroundStartRequestRef.current !== requestId) return;
+      if (audio !== previousBackground) stopAudioPlayback(audio);
+      if (onError) onError();
+    };
+
+    try {
+      const playRequest = audio.play();
+      if (playRequest && typeof playRequest.then === "function") {
+        playRequest.then(finishHandoff).catch(handlePlaybackError);
+      } else {
+        finishHandoff();
+      }
+    } catch (error) {
+      handlePlaybackError();
+    }
   };
 
   const scheduleTravelCardSounds = () => {
@@ -1455,7 +1549,6 @@ function App() {
   };
 
   const playSoundForSlide = (slideIndex, requestedSoundMode = soundModeRef.current) => {
-    stopAllSounds();
     let audioAllowed = requestedSoundMode !== SOUND_MODES.OFF;
     if (requestedSoundMode === SOUND_MODES.ONCE) {
       if (playedSoundSlidesRef.current.has(slideIndex)) {
@@ -1464,6 +1557,8 @@ function App() {
         playedSoundSlidesRef.current.add(slideIndex);
       }
     }
+
+    resetSlideSoundLifecycle({ preserveBackground: audioAllowed });
     activeSlideSoundEnabledRef.current = audioAllowed;
 
     if (slideIndex === SLIDE.MISSION) {
@@ -1492,6 +1587,9 @@ function App() {
         }
         missionAudioFinishedRef.current = true;
         if (zoneAudio) zoneAudio.onended = null;
+        if (audioAllowed && zoneAudio) {
+          startBackgroundAudio(zoneAudio, { loop: true });
+        }
         completeMissionWhenReady();
       };
 
@@ -1506,9 +1604,11 @@ function App() {
         missionBackgroundTimerRef.current = window.setTimeout(() => {
           if (missionRunRef.current !== runId) return;
           missionBackgroundTimerRef.current = null;
-          zoneAudio.currentTime = 0;
-          zoneAudio.onended = revealMissionResult;
-          zoneAudio.play().catch(revealMissionResult);
+          startBackgroundAudio(zoneAudio, {
+            loop: false,
+            onEnded: revealMissionResult,
+            onError: revealMissionResult
+          });
         }, MISSION_BACKGROUND_SOUND_DELAY_MS);
       } else {
         missionCardTimerRef.current = window.setTimeout(() => {
@@ -1542,23 +1642,17 @@ function App() {
 
         const countAudio = commissionAudioRef.current;
         if (audioAllowed && countAudio) {
-          countAudio.currentTime = 0;
-          countAudio.loop = true;
-          countAudio.play().catch(() => {});
-          commissionCountStopTimerRef.current = window.setTimeout(() => {
-            countAudio.pause();
-            countAudio.currentTime = 0;
-            countAudio.loop = false;
-            commissionCountStopTimerRef.current = null;
-          }, COMMISSION_ROLL_DURATION_MS);
+          startBackgroundAudio(countAudio, { loop: true });
         }
       };
 
       if (audioAllowed && introAudio) {
-        introAudio.currentTime = 0;
-        introAudio.onended = startCommissionCount;
-        introAudio.play().catch(() => {
-          commissionFallbackTimerRef.current = window.setTimeout(startCommissionCount, 500);
+        startBackgroundAudio(introAudio, {
+          loop: false,
+          onEnded: startCommissionCount,
+          onError: () => {
+            commissionFallbackTimerRef.current = window.setTimeout(startCommissionCount, 500);
+          }
         });
       } else {
         commissionFallbackTimerRef.current = window.setTimeout(startCommissionCount, 500);
@@ -1571,7 +1665,7 @@ function App() {
       : slideIndex === SLIDE.WEEKLY
         ? weeklyAudioRef.current
         : slideIndex === SLIDE.PRODUCTS
-          ? battleAudioRef.current
+          ? battleBackgroundAudioRef.current
           : slideIndex === SLIDE.MONTHLY
             ? monthlyAudioRef.current
             : slideIndex === SLIDE.SIX_MONTH
@@ -1580,8 +1674,9 @@ function App() {
               ? celebrateAudioRef.current
               : null;
     if (audioAllowed && audio) {
-      audio.currentTime = 0;
-      audio.play().catch(() => {});
+      startBackgroundAudio(audio, {
+        loop: slideIndex !== SLIDE.PRODUCTS
+      });
     }
     if (audioAllowed && slideIndex === SLIDE.SIX_MONTH) {
       scheduleTravelCardSounds();
@@ -1596,20 +1691,30 @@ function App() {
 
   const handleProductCardReveal = () => {
     if (!started || mode !== "present" || paused || !activeSlideSoundEnabledRef.current) return;
-    playCardSound(battleCardAudioRef.current);
+    playCardSound(battleCardPopAudioRef.current, {
+      maxDurationMs: BATTLE_CARD_POP_DURATION_MS
+    });
   };
 
   const cycleSoundMode = () => {
-    const next = soundModeRef.current === SOUND_MODES.OFF
+    const previous = soundModeRef.current;
+    const next = previous === SOUND_MODES.OFF
       ? SOUND_MODES.REPEAT
-      : soundModeRef.current === SOUND_MODES.REPEAT
+      : previous === SOUND_MODES.REPEAT
         ? SOUND_MODES.ONCE
         : SOUND_MODES.OFF;
     soundModeRef.current = next;
     mutedRef.current = next === SOUND_MODES.OFF;
-    if (next === SOUND_MODES.ONCE) playedSoundSlidesRef.current.clear();
+    if (next === SOUND_MODES.ONCE) {
+      playedSoundSlidesRef.current.clear();
+      if (started && mode === "present") playedSoundSlidesRef.current.add(index);
+    }
     setSoundMode(next);
-    if (next === SOUND_MODES.OFF) stopAllSounds();
+    if (next === SOUND_MODES.OFF) {
+      stopAllSounds();
+    } else if (previous === SOUND_MODES.OFF && started && mode === "present" && !paused) {
+      playSoundForSlide(index, next);
+    }
   };
 
   const togglePause = () => {
@@ -1618,7 +1723,7 @@ function App() {
       if (next) {
         clearTravelCardSounds();
         clearCardSounds();
-        [introAudioRef.current, monthlyAudioRef.current, weeklyAudioRef.current, travelAudioRef.current, battleAudioRef.current, commissionIntroAudioRef.current, commissionAudioRef.current, celebrateAudioRef.current, ...Object.values(zoneAudioRefs.current)].forEach(audio => audio?.pause());
+        [introAudioRef.current, monthlyAudioRef.current, weeklyAudioRef.current, travelAudioRef.current, battleBackgroundAudioRef.current, commissionIntroAudioRef.current, commissionAudioRef.current, celebrateAudioRef.current, ...Object.values(zoneAudioRefs.current)].forEach(audio => audio?.pause());
       } else if (started && mode === "present") {
         setReplay(value => value + 1);
         playSoundForSlide(index);

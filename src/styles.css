@@ -3050,3 +3050,4 @@ button { cursor: pointer; }
 .performers-slide:is(.monthly, .weekly) .portrait-empty {
   border-radius: clamp(5px, .55vw, 10px);
 }
+
