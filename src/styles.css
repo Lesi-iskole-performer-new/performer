@@ -1222,7 +1222,7 @@ button { cursor: pointer; }
   }
 }
 
-/* Premium zone suitcase â€” rebuilt from the supplied open briefcase reference. */
+/* Premium zone suitcase Ã¢â‚¬â€ rebuilt from the supplied open briefcase reference. */
 .mission-suitcase {
   --caseLight: #ff5368;
   --case: #a31329;
@@ -2968,7 +2968,7 @@ button { cursor: pointer; }
   .selected-performer-editor.no-place input { grid-column: 1; }
 }
 
-/* Supplied Commission Update and Congratulations slides â€” isolated so other slides stay unchanged */
+/* Supplied Commission Update and Congratulations slides Ã¢â‚¬â€ isolated so other slides stay unchanged */
 .sr-only { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
 .supplied-commission-slide { justify-content:center; background:transparent; }
 .commission-slide-content { position:relative; z-index:3; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:13%; text-align:center; }

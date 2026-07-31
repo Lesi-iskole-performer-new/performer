@@ -37,7 +37,7 @@ const MISSION_CARD_REVEAL_MS = 3450;
 const MISSION_ANIMATION_DURATION_MS = 5600;
 const SLOW_BATTLE_SLIDE_DURATION_MS = 13000;
 const COMMISSION_TITLE_FALLBACK_DURATION_MS = 1200;
-const COMMISSION_COUNTING_DURATION_MS = 5000;
+const COMMISSION_COUNTING_DURATION_MS = 9000;
 const COMMISSION_FINAL_DISPLAY_MS = 5000;
 const COMMISSION_CASH_SEQUENCE_MS = COMMISSION_COUNTING_DURATION_MS + COMMISSION_FINAL_DISPLAY_MS;
 const LOCAL_STORAGE_KEY = "lesi-achievers-state";
@@ -1237,6 +1237,7 @@ function App() {
   const slideAudioRunRef = useRef(0);
   const commissionRunRef = useRef(0);
   const commissionFallbackTimerRef = useRef(null);
+  const commissionCashStopTimerRef = useRef(null);
   const missionRunRef = useRef(0);
   const missionCardTimerRef = useRef(null);
   const missionAnimationTimerRef = useRef(null);
@@ -1326,6 +1327,7 @@ function App() {
       travelCardInstancesRef.current = [];
       Object.values(zoneAudios).forEach(audio => { audio.onended = null; });
       if (commissionFallbackTimerRef.current) window.clearTimeout(commissionFallbackTimerRef.current);
+      if (commissionCashStopTimerRef.current) window.clearTimeout(commissionCashStopTimerRef.current);
       if (missionCardTimerRef.current) window.clearTimeout(missionCardTimerRef.current);
       if (missionAnimationTimerRef.current) window.clearTimeout(missionAnimationTimerRef.current);
       [introAudio, monthlyAudio, weeklyAudio, travelAudio, travelCardAudio, travelSpotlightAudio, battleAudio, commissionIntroAudio, commissionAudio, ...Object.values(zoneAudios), battleCardAudio, monthlyCardAudio, weeklyCardAudio, missionCardAudio, celebrateAudio].forEach(audio => {
@@ -1434,6 +1436,10 @@ function App() {
     if (commissionFallbackTimerRef.current) {
       window.clearTimeout(commissionFallbackTimerRef.current);
       commissionFallbackTimerRef.current = null;
+    }
+    if (commissionCashStopTimerRef.current) {
+      window.clearTimeout(commissionCashStopTimerRef.current);
+      commissionCashStopTimerRef.current = null;
     }
     if (missionCardTimerRef.current) {
       window.clearTimeout(missionCardTimerRef.current);
@@ -1565,11 +1571,11 @@ function App() {
         titleDurationMs
       });
 
-      const finishCommission = () => {
+      const stopCommissionCash = () => {
         if (commissionRunRef.current !== runId) return;
-        if (commissionFallbackTimerRef.current) {
-          window.clearTimeout(commissionFallbackTimerRef.current);
-          commissionFallbackTimerRef.current = null;
+        if (commissionCashStopTimerRef.current) {
+          window.clearTimeout(commissionCashStopTimerRef.current);
+          commissionCashStopTimerRef.current = null;
         }
         if (countAudio) {
           countAudio.onended = null;
@@ -1577,6 +1583,15 @@ function App() {
           countAudio.currentTime = 0;
           countAudio.loop = false;
         }
+      };
+
+      const finishCommission = () => {
+        if (commissionRunRef.current !== runId) return;
+        if (commissionFallbackTimerRef.current) {
+          window.clearTimeout(commissionFallbackTimerRef.current);
+          commissionFallbackTimerRef.current = null;
+        }
+        stopCommissionCash();
         setCommissionSequence(current => ({ ...current, finished: true }));
       };
 
@@ -1595,7 +1610,7 @@ function App() {
         );
         const audioDurationMs = hasAudioDuration
           ? Math.round(countAudio.duration * 1000)
-          : COMMISSION_CASH_SEQUENCE_MS;
+          : COMMISSION_COUNTING_DURATION_MS;
         const sequenceDurationMs = COMMISSION_CASH_SEQUENCE_MS;
         const rollDurationMs = COMMISSION_COUNTING_DURATION_MS;
         setCommissionSequence(current => ({
@@ -1607,19 +1622,18 @@ function App() {
 
         if (audioAllowed && countAudio) {
           countAudio.currentTime = 0;
-          countAudio.loop = !hasAudioDuration || audioDurationMs < sequenceDurationMs;
-          countAudio.onended = countAudio.loop ? null : finishCommission;
-          commissionFallbackTimerRef.current = window.setTimeout(
-            finishCommission,
-            sequenceDurationMs
+          countAudio.loop = !hasAudioDuration || audioDurationMs < rollDurationMs;
+          countAudio.onended = null;
+          commissionCashStopTimerRef.current = window.setTimeout(
+            stopCommissionCash,
+            rollDurationMs
           );
           countAudio.play().catch(() => {});
-        } else {
-          commissionFallbackTimerRef.current = window.setTimeout(
-            finishCommission,
-            sequenceDurationMs
-          );
         }
+        commissionFallbackTimerRef.current = window.setTimeout(
+          finishCommission,
+          sequenceDurationMs
+        );
       };
 
       if (audioAllowed && introAudio) {
