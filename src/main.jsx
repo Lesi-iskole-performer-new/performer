@@ -1500,7 +1500,11 @@ function App() {
 
     if (slideIndex === SLIDE.MISSION) {
       const runId = ++missionRunRef.current;
-      const zoneAudio = zoneAudioRefs.current[zoneFor(state.sales).key];
+      const missionZoneKey = zoneFor(state.sales).key;
+      const zoneAudio = zoneAudioRefs.current[missionZoneKey];
+      const missionResultCardAudio = missionZoneKey === "danger"
+        ? missionCardAudioRef.current
+        : travelSpotlightAudioRef.current;
       missionAudioFinishedRef.current = !audioAllowed || !zoneAudio;
       missionAnimationFinishedRef.current = false;
       setMissionSequenceComplete(false);
@@ -1519,8 +1523,8 @@ function App() {
         if (resultRevealed) return;
         resultRevealed = true;
         setMissionResultVisible(true);
-        if (audioAllowed && missionCardAudioRef.current) {
-          playCardSound(missionCardAudioRef.current);
+        if (audioAllowed && missionResultCardAudio) {
+          playCardSound(missionResultCardAudio);
         }
         completeMissionWhenReady();
       };
