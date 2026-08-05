@@ -10,6 +10,11 @@ const ASSET = "/assets";
 const INTRO_SOUND = `${ASSET}/sounds/Achivers.mp3`;
 const MONTHLY_SOUND = `${ASSET}/sounds/Monthlyperformerce.mp3`;
 const WEEKLY_SOUND = `${ASSET}/sounds/Weeklyperfrmer.mp3`;
+const TEAM_SOUND_SOURCES = Object.freeze({
+  smadhi: `${ASSET}/sounds/smadhi.mp3`,
+  naduni: `${ASSET}/sounds/Naduni.mp3`,
+  vindya: `${ASSET}/sounds/vindya.mp3`
+});
 const TRAVEL_SOUND = `${ASSET}/sounds/Travel.mp3`;
 const TRAVEL_CARD_SOUND = `${ASSET}/sounds/travelcard.mp3`;
 const TRAVEL_SPOTLIGHT_SOUND = `${ASSET}/sounds/cardelectric.mp3`;
@@ -33,6 +38,7 @@ const SIX_MONTH_SPOTLIGHT_SOUND_DELAYS_MS = [4750, 7550, 10350];
 const WEEKLY_CARD_SEQUENCE_MS = 1000 + (5 * 1400) + 2050;
 const WEEKLY_FINAL_HOLD_MS = 8000;
 const WEEKLY_PERFORMER_SLIDE_DURATION_MS = WEEKLY_CARD_SEQUENCE_MS + WEEKLY_FINAL_HOLD_MS;
+const TEAM_FALLBACK_SLIDE_DURATION_MS = 15000;
 const MISSION_CARD_REVEAL_MS = 3450;
 const MISSION_ANIMATION_DURATION_MS = 5600;
 const SLOW_BATTLE_SLIDE_DURATION_MS = 13000;
@@ -72,19 +78,18 @@ const fireworkAngles = Array.from({ length: 16 }, (_, index) => index * 22.5);
 const SLIDE = Object.freeze({
   ACHIEVERS: 0,
   WEEKLY: 1,
-  PRODUCTS: 2,
-  MONTHLY: 3,
-  SIX_MONTH: 4,
-  COMMISSION: 5,
-  MISSION: 6,
-  CONGRATULATIONS: 7
+  TEAM_ONE: 2,
+  TEAM_TWO: 3,
+  TEAM_THREE: 4,
+  PRODUCTS: 5,
+  MONTHLY: 6,
+  SIX_MONTH: 7,
+  COMMISSION: 8,
+  MISSION: 9,
+  CONGRATULATIONS: 10
 });
 
-const slideNames = [
-  "Achievers", "Weekly Performers", "Battle of the Products",
-  "Monthly Performers", "6th Month Performers", "Commission Update",
-  "Mission Unlock", "Congratulations"
-];
+const TEAM_SLIDES = [SLIDE.TEAM_ONE, SLIDE.TEAM_TWO, SLIDE.TEAM_THREE];
 
 const SOUND_MODES = Object.freeze({
   OFF: "off",
@@ -118,6 +123,44 @@ const starter = {
   sixMonth: ["Nimna", "Thilakshi", "kaveesha", "Thamara", "shehara", "Chalani"],
   sixMonthBackground: `${ASSET}/bangkok-bg.jpg`,
   weekly: ["Nimna", "Thilakshi", "kaveesha", "Thamara", "shehara"],
+  teams: [
+    {
+      id: "smadhi",
+      name: "TEAM SMADHI",
+      leaderName: "Smadhi",
+      leaderImage: "/leaders/smdhi.webp",
+      members: ["Koshila", "Sandeepa", "Dinithi", "Shehara", "Wathsala", "Lakmi", "Kaweesha", "Thilakshi", "Dilsha"].map((name, index) => ({
+        id: `smadhi-${index + 1}`,
+        name,
+        sales: "",
+        confirmed: ""
+      }))
+    },
+    {
+      id: "naduni",
+      name: "TEAM NADUNI",
+      leaderName: "Naduni",
+      leaderImage: "/leaders/naduni.webp",
+      members: ["Thamara", "Oshadhi", "Kavindaya", "Dulari", "Chamodhi", "Wishmi", "Shalini", "Sithmi", "Chamathka"].map((name, index) => ({
+        id: `naduni-${index + 1}`,
+        name,
+        sales: "",
+        confirmed: ""
+      }))
+    },
+    {
+      id: "vindya",
+      name: "TEAM VINDYA",
+      leaderName: "Vindya",
+      leaderImage: "/leaders/vindya.webp",
+      members: ["Sachini", "Nimna", "Pamoda", "Madushani", "Sanduni", "Sanjeewani", "Bagya", "Ayesha", "Pramila"].map((name, index) => ({
+        id: `vindya-${index + 1}`,
+        name,
+        sales: "",
+        confirmed: ""
+      }))
+    }
+  ],
   slideCounts: {
     monthly: {},
     sixMonth: {},
@@ -142,6 +185,54 @@ const starter = {
     }
   ]
 };
+
+const isTeamSlide = index => TEAM_SLIDES.includes(index);
+
+function getRankedTeams(state) {
+  return (state.teams || []).map((team, originalIndex) => {
+    const totalSales = (team.members || []).reduce((total, member) => total + Number(member.sales || 0), 0);
+    const totalConfirmed = (team.members || []).reduce((total, member) => total + Number(member.confirmed || 0), 0);
+    return { ...team, totalSales, totalConfirmed, originalIndex };
+  }).sort((left, right) =>
+    right.totalSales - left.totalSales ||
+    right.totalConfirmed - left.totalConfirmed ||
+    left.originalIndex - right.originalIndex
+  );
+}
+
+function getOrderedTeams(state, teamOrder) {
+  const teams = (state.teams || []).map((team, originalIndex) => ({
+    ...team,
+    originalIndex,
+    totalSales: (team.members || []).reduce((total, member) => total + Number(member.sales || 0), 0),
+    totalConfirmed: (team.members || []).reduce((total, member) => total + Number(member.confirmed || 0), 0)
+  }));
+  if (!Array.isArray(teamOrder) || !teamOrder.length) return teams;
+  const ordered = teamOrder.map(id => teams.find(team => team.id === id)).filter(Boolean);
+  return [...ordered, ...teams.filter(team => !ordered.some(item => item.id === team.id))];
+}
+
+function getTeamForSlide(state, index, teamOrder) {
+  if (!isTeamSlide(index)) return null;
+  return getOrderedTeams(state, teamOrder)[index - SLIDE.TEAM_ONE] || null;
+}
+
+function getSlideNames(state, teamOrder) {
+  const orderedTeams = getOrderedTeams(state, teamOrder);
+  return [
+    "Achievers",
+    "Weekly Performers",
+    orderedTeams[0]?.name || "Team 1",
+    orderedTeams[1]?.name || "Team 2",
+    orderedTeams[2]?.name || "Team 3",
+    "Battle of the Products",
+    "Monthly Performers",
+    "6th Month Performers",
+    "Commission Update",
+    "Mission Unlock",
+    "Congratulations"
+  ];
+}
 
 const places = [
   { label: "CHAMPION", color: "gold" },
@@ -214,6 +305,26 @@ function validatePresentation(state) {
     const values = (state[group.key] || []).map(id => state.slideCounts?.[group.key]?.[id]);
     const problem = validateRankedCounts({ ...group, values });
     if (problem) return problem;
+  }
+
+  const teams = state.teams || [];
+  for (let teamRank = 0; teamRank < teams.length; teamRank += 1) {
+    const team = teams[teamRank];
+    const values = (team.members || []).flatMap(member => [member.sales, member.confirmed]);
+    if (values.some(isMissingCount)) {
+      return {
+        slideIndex: SLIDE.TEAM_ONE + teamRank,
+        title: "TEAM COUNTS REQUIRED",
+        message: `${team.name}: Please enter Sales and Confirmed counts for every team member.`
+      };
+    }
+    if (values.some(value => !isValidCount(value))) {
+      return {
+        slideIndex: SLIDE.TEAM_ONE + teamRank,
+        title: "INVALID TEAM COUNT",
+        message: `${team.name}: Please use valid whole numbers for Sales and Confirmed counts.`
+      };
+    }
   }
 
   const productProblem = validateRankedCounts({
@@ -409,6 +520,32 @@ function mergeSavedState(saved) {
     }, {});
   };
 
+  const savedTeams = Array.isArray(saved.teams) ? saved.teams : [];
+  const normalizeTeamCount = value => {
+    if (value === "" || value === null || value === undefined) return "";
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? Math.max(0, Math.round(numericValue)) : "";
+  };
+  const teams = starter.teams.map(defaultTeam => {
+    const savedTeam = savedTeams.find(team => memberKey(team?.id) === memberKey(defaultTeam.id));
+    const savedTeamMembers = Array.isArray(savedTeam?.members) ? savedTeam.members : [];
+
+    return {
+      ...defaultTeam,
+      members: defaultTeam.members.map(defaultTeamMember => {
+        const savedTeamMember = savedTeamMembers.find(member =>
+          memberKey(member?.id) === memberKey(defaultTeamMember.id) ||
+          memberKey(member?.name) === memberKey(defaultTeamMember.name)
+        );
+        return {
+          ...defaultTeamMember,
+          sales: normalizeTeamCount(savedTeamMember?.sales),
+          confirmed: normalizeTeamCount(savedTeamMember?.confirmed)
+        };
+      })
+    };
+  });
+
   return {
     ...starter,
     ...saved,
@@ -416,6 +553,7 @@ function mergeSavedState(saved) {
     monthly,
     sixMonth,
     weekly,
+    teams,
     sales,
     commission: sales === "" ? "" : String(sales * 300),
     slideCounts: {
@@ -941,6 +1079,61 @@ function MissionSlide({ state, showResultCard }) {
   </section>;
 }
 
+function TeamPerformanceSlide({ team }) {
+  if (!team) return null;
+
+  const sortedMembers = (team.members || []).map((member, originalIndex) => ({ ...member, originalIndex })).sort((left, right) =>
+    Number(right.sales || 0) - Number(left.sales || 0) ||
+    Number(right.confirmed || 0) - Number(left.confirmed || 0) ||
+    left.originalIndex - right.originalIndex
+  );
+  const displayCount = value => isMissingCount(value) ? "—" : Number(value).toLocaleString();
+
+  return <section className={`slide team-performance-slide team-${team.id}`}>
+    <SparkField count={30} color="blue"/>
+    <div className="team-performance-glow"/>
+    <GoldTitle eyebrow="SALES TEAM PERFORMANCE" compact>{team.name}</GoldTitle>
+
+    <div className="team-performance-layout">
+      <aside className="team-leader-card reveal team-leader-reveal">
+        <div className="team-leader-photo">
+          <span>{String(team.leaderName || team.name).slice(0, 1)}</span>
+          <img
+            src={team.leaderImage}
+            alt={`${team.leaderName} leader portrait`}
+            onError={event => { event.currentTarget.style.display = "none"; }}
+          />
+        </div>
+        <h2>{team.leaderName}</h2>
+        <div className="team-total-grid">
+          <div><span>TOTAL SALES</span><strong>{team.totalSales.toLocaleString()}</strong></div>
+          <div><span>CONFIRMED</span><strong>{team.totalConfirmed.toLocaleString()}</strong></div>
+        </div>
+      </aside>
+
+      <div className="team-member-board reveal team-board-reveal">
+        <div className="team-member-head">
+          <span>RANK</span><span>TEAM MEMBER</span><span>SALES</span><span>CONFIRMED</span>
+        </div>
+        <div className="team-member-list">
+          {sortedMembers.map((member, memberIndex) => <article
+            className={`team-member-row ${memberIndex < 3 ? `top-${memberIndex + 1}` : ""}`}
+            style={{ "--member-order": memberIndex }}
+            key={member.id}
+          >
+            <b className="team-member-rank">{String(memberIndex + 1).padStart(2, "0")}</b>
+            <div className="team-member-name"><i>{member.name.slice(0, 1)}</i><strong>{member.name}</strong></div>
+            <div className="team-member-metric sales"><small>SALES</small><strong>{displayCount(member.sales)}</strong></div>
+            <div className="team-member-metric confirmed"><small>CONFIRMED</small><strong>{displayCount(member.confirmed)}</strong></div>
+          </article>)}
+        </div>
+      </div>
+    </div>
+
+    <Brand small/>
+  </section>;
+}
+
 function FinaleSlide({ state }) {
   return <section className="slide congratulations-slide animated-slide">
     <div className="fireworks-background"/>
@@ -956,12 +1149,13 @@ function FinaleSlide({ state }) {
 }
 
 function Stage({
-  index, state, replay, onPerformerCardReveal, onProductCardReveal,
+  index, state, teamOrder, replay, onPerformerCardReveal, onProductCardReveal,
   revealCommission, commissionRollDuration, commissionTitleDuration, showMissionResult
 }) {
   return <div className={`presentation-stage stage-${index}`} key={`${index}-${replay}`}>
     {index === SLIDE.ACHIEVERS && <IntroSlide />}
     {index === SLIDE.WEEKLY && <PerformersSlide state={state} list={state.weekly} type="weekly" onCardReveal={onPerformerCardReveal} />}
+    {isTeamSlide(index) && <TeamPerformanceSlide team={getTeamForSlide(state, index, teamOrder)}/>} 
     {index === SLIDE.PRODUCTS && <ProductsSlide state={state} onCardReveal={onProductCardReveal} />}
     {index === SLIDE.MONTHLY && <PerformersSlide state={state} list={state.monthly} type="monthly" onCardReveal={onPerformerCardReveal} />}
     {index === SLIDE.SIX_MONTH && <SixMonthFlightSlide state={state} list={state.sixMonth} />}
@@ -1054,7 +1248,72 @@ function PerformerEditor({ state, setState, listKey, ranked = true }) {
   </>;
 }
 
-function Inspector({ index, state, setState, onClose, onSave, saving }) {
+function TeamEditor({ team, setState }) {
+  if (!team) return null;
+
+  const updateMemberCount = (memberId, field, rawValue) => setState(current => ({
+    ...current,
+    teams: current.teams.map(currentTeam => currentTeam.id !== team.id
+      ? currentTeam
+      : {
+        ...currentTeam,
+        members: currentTeam.members.map(member => member.id !== memberId
+          ? member
+          : {
+            ...member,
+            [field]: rawValue === "" ? "" : Math.max(0, Number(rawValue))
+          })
+      })
+  }));
+
+  const totalSales = team.members.reduce((total, member) => total + Number(member.sales || 0), 0);
+  const totalConfirmed = team.members.reduce((total, member) => total + Number(member.confirmed || 0), 0);
+
+  return <>
+    <div className="inspector-section team-editor-summary">
+      <div className="section-title"><span>{team.name}</span><small>Manual team counts</small></div>
+      <div className="team-editor-leader">
+        <div className="team-editor-leader-image">
+          <span>{team.leaderName.slice(0, 1)}</span>
+          <img src={team.leaderImage} alt={team.leaderName} onError={event => { event.currentTarget.style.display = "none"; }}/>
+        </div>
+        <div><strong>{team.leaderName}</strong></div>
+      </div>
+      <div className="team-editor-totals">
+        <div><span>Total Sales</span><strong>{totalSales.toLocaleString()}</strong></div>
+        <div><span>Confirmed</span><strong>{totalConfirmed.toLocaleString()}</strong></div>
+      </div>
+      <p className="helper">Enter both values manually. During presentation, teams and members are automatically shown from highest Sales to lowest Sales; Confirmed count is used when Sales values are equal.</p>
+    </div>
+
+    <div className="inspector-section team-member-editor-section">
+      <div className="team-member-editor-head"><span>Team member</span><span>Sales</span><span>Confirmed</span></div>
+      {team.members.map(member => <div className="team-member-editor" key={member.id}>
+        <strong>{member.name}</strong>
+        <input
+          type="number"
+          min="0"
+          inputMode="numeric"
+          placeholder="Sales"
+          value={member.sales}
+          onChange={event => updateMemberCount(member.id, "sales", event.target.value)}
+          aria-label={`${member.name} sales count`}
+        />
+        <input
+          type="number"
+          min="0"
+          inputMode="numeric"
+          placeholder="Confirmed"
+          value={member.confirmed}
+          onChange={event => updateMemberCount(member.id, "confirmed", event.target.value)}
+          aria-label={`${member.name} confirmed count`}
+        />
+      </div>)}
+    </div>
+  </>;
+}
+
+function Inspector({ index, state, slideNames, setState, onClose, onSave, saving }) {
   const update = patch => setState(s => ({ ...s, ...patch }));
   const listKey = index === SLIDE.MONTHLY
     ? "monthly"
@@ -1063,6 +1322,7 @@ function Inspector({ index, state, setState, onClose, onSave, saving }) {
       : "weekly";
   const placeLabels = ["1ST PLACE", "2ND PLACE", "3RD PLACE"];
   const weekOptions = WEEKS.includes(state.week) ? WEEKS : [state.week, ...WEEKS].filter(Boolean);
+  const team = getTeamForSlide(state, index, state.teams.map(item => item.id));
 
   const swapProductPlaces = (fromIndex, toIndex) => setState(current => {
     if (fromIndex === toIndex) return current;
@@ -1106,8 +1366,9 @@ function Inspector({ index, state, setState, onClose, onSave, saving }) {
   });
 
   return <aside className="inspector">
-    <header><div><small>SLIDE {index + 1} OF 8</small><h2>{slideNames[index]}</h2></div><button onClick={onClose}><X/></button></header>
+    <header><div><small>SLIDE {index + 1} OF {slideNames.length}</small><h2>{slideNames[index]}</h2></div><button onClick={onClose}><X/></button></header>
     <div className="inspector-scroll">
+      {isTeamSlide(index) && <TeamEditor team={team} setState={setState}/>} 
       {(index === SLIDE.WEEKLY || index === SLIDE.MONTHLY || index === SLIDE.SIX_MONTH) && <>
         {index !== SLIDE.SIX_MONTH && <div className="inspector-section">
           {index === SLIDE.WEEKLY && <label className="field"><span>Week</span><select value={state.week} onChange={e => update({ week: e.target.value })}>{weekOptions.map(week => <option value={week} key={week}>{week}</option>)}</select></label>}
@@ -1118,7 +1379,7 @@ function Inspector({ index, state, setState, onClose, onSave, saving }) {
       {index === SLIDE.PRODUCTS && <div className="inspector-section">
         <div className="section-title"><span>Product rankings</span><small>Select rank, product and sales</small></div>
         {state.products.map((product, i) => <div className="product-editor" key={product.id}>
-          <select
+          <select  
             className="product-place-select"
             value={i}
             onChange={event => swapProductPlaces(i, Number(event.target.value))}
@@ -1151,7 +1412,7 @@ function Inspector({ index, state, setState, onClose, onSave, saving }) {
         <p className="helper">Enter Total Sales here. Mission Unlock awards LKR 1,000,000 at 6,500 sales, LKR 2,000,000 at 7,500 sales, and LKR 3,000,000 at 10,000 sales.</p>
       </div>}
       {index === SLIDE.MISSION && <div className="inspector-section">
-        <div className="locked-card"><h3>Controlled by Commission Update</h3><p>Edit Total Sales on Slide 6 — Commission Update. Mission Unlock changes automatically from the same sales value.</p></div>
+        <div className="locked-card"><h3>Controlled by Commission Update</h3><p>Edit Total Sales on Slide 9 — Commission Update. Mission Unlock changes automatically from the same sales value.</p></div>
         <div className={`zone-preview ${zoneFor(state.sales).key}`}><span>Current result</span><b>{zoneFor(state.sales).name}</b><strong>{zoneFor(state.sales).amount ? money(zoneFor(state.sales).amount) : "NO COMMISSION"}</strong></div>
       </div>}
       {index === SLIDE.CONGRATULATIONS && <div className="inspector-section">
@@ -1166,7 +1427,7 @@ function Inspector({ index, state, setState, onClose, onSave, saving }) {
   </aside>;
 }
 
-function SlideRail({ index, onSelect }) {
+function SlideRail({ index, slideNames, onSelect }) {
   return <aside className="slide-rail">
     <div className="rail-title"><MonitorPlay size={17}/><span>SHOW FLOW</span></div>
     {slideNames.map((name, i) => <button className={index === i ? "active" : ""} onClick={() => onSelect(i)} key={name}>
@@ -1192,6 +1453,9 @@ function StartOverlay({ onStart, onEdit }) {
 
 function App() {
   const [state, setState] = useState(() => loadLocalPresentation() || starter);
+  const [presentationTeamOrder, setPresentationTeamOrder] = useState(() =>
+    starter.teams.map(team => team.id)
+  );
   const [index, setIndex] = useState(0);
   const [mode, setMode] = useState("edit");
   const [inspector, setInspector] = useState(true);
@@ -1214,10 +1478,14 @@ function App() {
     slideIndex: SLIDE.ACHIEVERS,
     status: "fallback"
   });
+  const editingTeamOrder = state.teams.map(team => team.id);
+  const displayedTeamOrder = mode === "present" ? presentationTeamOrder : editingTeamOrder;
+  const slideNames = getSlideNames(state, displayedTeamOrder);
   const stageRef = useRef(null);
   const introAudioRef = useRef(null);
   const monthlyAudioRef = useRef(null);
   const weeklyAudioRef = useRef(null);
+  const teamAudioRefs = useRef({});
   const travelAudioRef = useRef(null);
   const travelCardAudioRef = useRef(null);
   const travelSpotlightAudioRef = useRef(null);
@@ -1247,12 +1515,16 @@ function App() {
   const soundModeRef = useRef(SOUND_MODES.OFF);
   const playedSoundSlidesRef = useRef(new Set());
   const activeSlideSoundEnabledRef = useRef(false);
+  const activeTeamOrderRef = useRef(presentationTeamOrder);
 
 
   useEffect(() => {
     const introAudio = new Audio(INTRO_SOUND);
     const monthlyAudio = new Audio(MONTHLY_SOUND);
     const weeklyAudio = new Audio(WEEKLY_SOUND);
+    const teamAudios = Object.fromEntries(
+      Object.entries(TEAM_SOUND_SOURCES).map(([teamId, source]) => [teamId, new Audio(source)])
+    );
     const travelAudio = new Audio(TRAVEL_SOUND);
     const travelCardAudio = new Audio(TRAVEL_CARD_SOUND);
     const travelSpotlightAudio = new Audio(TRAVEL_SPOTLIGHT_SOUND);
@@ -1273,6 +1545,10 @@ function App() {
     introAudio.preload = "auto";
     monthlyAudio.preload = "auto";
     weeklyAudio.preload = "auto";
+    Object.values(teamAudios).forEach(audio => {
+      audio.preload = "auto";
+      audio.volume = 1;
+    });
     travelAudio.preload = "auto";
     travelCardAudio.preload = "auto";
     travelSpotlightAudio.preload = "auto";
@@ -1291,7 +1567,7 @@ function App() {
     missionCardAudio.preload = "auto";
     celebrateAudio.preload = "auto";
     [
-      introAudio, monthlyAudio, weeklyAudio, travelAudio, travelCardAudio, travelSpotlightAudio, battleAudio,
+      introAudio, monthlyAudio, weeklyAudio, ...Object.values(teamAudios), travelAudio, travelCardAudio, travelSpotlightAudio, battleAudio,
       commissionIntroAudio, commissionAudio, ...Object.values(zoneAudios),
       battleCardAudio, monthlyCardAudio, weeklyCardAudio, missionCardAudio, celebrateAudio
     ].forEach(audio => {
@@ -1300,6 +1576,7 @@ function App() {
     introAudioRef.current = introAudio;
     monthlyAudioRef.current = monthlyAudio;
     weeklyAudioRef.current = weeklyAudio;
+    teamAudioRefs.current = teamAudios;
     travelAudioRef.current = travelAudio;
     travelCardAudioRef.current = travelCardAudio;
     travelSpotlightAudioRef.current = travelSpotlightAudio;
@@ -1330,7 +1607,7 @@ function App() {
       if (commissionCashStopTimerRef.current) window.clearTimeout(commissionCashStopTimerRef.current);
       if (missionCardTimerRef.current) window.clearTimeout(missionCardTimerRef.current);
       if (missionAnimationTimerRef.current) window.clearTimeout(missionAnimationTimerRef.current);
-      [introAudio, monthlyAudio, weeklyAudio, travelAudio, travelCardAudio, travelSpotlightAudio, battleAudio, commissionIntroAudio, commissionAudio, ...Object.values(zoneAudios), battleCardAudio, monthlyCardAudio, weeklyCardAudio, missionCardAudio, celebrateAudio].forEach(audio => {
+      [introAudio, monthlyAudio, weeklyAudio, ...Object.values(teamAudios), travelAudio, travelCardAudio, travelSpotlightAudio, battleAudio, commissionIntroAudio, commissionAudio, ...Object.values(zoneAudios), battleCardAudio, monthlyCardAudio, weeklyCardAudio, missionCardAudio, celebrateAudio].forEach(audio => {
         audio.onended = null;
         audio.pause();
         audio.currentTime = 0;
@@ -1338,6 +1615,7 @@ function App() {
       introAudioRef.current = null;
       monthlyAudioRef.current = null;
       weeklyAudioRef.current = null;
+      teamAudioRefs.current = {};
       travelAudioRef.current = null;
       travelCardAudioRef.current = null;
       travelSpotlightAudioRef.current = null;
@@ -1360,6 +1638,7 @@ function App() {
       introAudioRef.current,
       monthlyAudioRef.current,
       weeklyAudioRef.current,
+      ...Object.values(teamAudioRefs.current),
       travelAudioRef.current,
       travelCardAudioRef.current,
       travelSpotlightAudioRef.current,
@@ -1452,6 +1731,7 @@ function App() {
       introAudioRef.current,
       monthlyAudioRef.current,
       weeklyAudioRef.current,
+      ...Object.values(teamAudioRefs.current),
       travelAudioRef.current,
       travelSpotlightAudioRef.current,
       battleAudioRef.current,
@@ -1654,10 +1934,14 @@ function App() {
       return;
     }
 
+    const teamForSlide = getTeamForSlide(state, slideIndex, activeTeamOrderRef.current);
+    const teamAudio = teamForSlide ? teamAudioRefs.current[teamForSlide.id] : null;
     const audio = slideIndex === SLIDE.ACHIEVERS
       ? introAudioRef.current
       : slideIndex === SLIDE.WEEKLY
         ? weeklyAudioRef.current
+        : isTeamSlide(slideIndex)
+          ? teamAudio
         : slideIndex === SLIDE.PRODUCTS
           ? battleAudioRef.current
           : slideIndex === SLIDE.MONTHLY
@@ -1667,7 +1951,7 @@ function App() {
               : slideIndex === SLIDE.CONGRATULATIONS
               ? celebrateAudioRef.current
               : null;
-    const synchronizedToBackground = [
+    const synchronizedToBackground = isTeamSlide(slideIndex) || [
       SLIDE.WEEKLY,
       SLIDE.PRODUCTS,
       SLIDE.MONTHLY,
@@ -1731,6 +2015,7 @@ function App() {
           introAudioRef.current,
           monthlyAudioRef.current,
           weeklyAudioRef.current,
+          ...Object.values(teamAudioRefs.current),
           travelAudioRef.current,
           travelSpotlightAudioRef.current,
           battleAudioRef.current,
@@ -1782,6 +2067,9 @@ function App() {
     }
 
     setValidationWarning(null);
+    const nextTeamOrder = getRankedTeams(state).map(team => team.id);
+    activeTeamOrderRef.current = nextTeamOrder;
+    setPresentationTeamOrder(nextTeamOrder);
     playedSoundSlidesRef.current.clear();
     soundModeRef.current = requestedSoundMode;
     mutedRef.current = requestedSoundMode === SOUND_MODES.OFF;
@@ -1832,6 +2120,7 @@ function App() {
     if (!started || mode !== "present" || paused) return undefined;
     const synchronizedSlides = [
       SLIDE.WEEKLY,
+      ...TEAM_SLIDES,
       SLIDE.PRODUCTS,
       SLIDE.MONTHLY,
       SLIDE.SIX_MONTH
@@ -1850,7 +2139,9 @@ function App() {
       if (slideAudioSync.status === "finished") {
         duration = 0;
       } else {
-        duration = index === SLIDE.PRODUCTS
+        duration = isTeamSlide(index)
+          ? TEAM_FALLBACK_SLIDE_DURATION_MS
+          : index === SLIDE.PRODUCTS
           ? SLOW_BATTLE_SLIDE_DURATION_MS
           : index === SLIDE.WEEKLY
             ? WEEKLY_PERFORMER_SLIDE_DURATION_MS
@@ -1913,7 +2204,7 @@ function App() {
       </div>
       <button onClick={() => setValidationWarning(null)} aria-label="Close warning"><X/></button>
     </div>}
-    {mode === "edit" && <SlideRail index={index} onSelect={select}/>}
+    {mode === "edit" && <SlideRail index={index} slideNames={slideNames} onSelect={select}/>}
     <div className="workspace">
       {mode === "edit" && <header className="topbar">
         <div className="project-title"><Brand small/><div><b>Achievers Show</b></div></div>
@@ -1931,6 +2222,7 @@ function App() {
         <Stage
           index={index}
           state={state}
+          teamOrder={displayedTeamOrder}
           replay={replay}
           onPerformerCardReveal={handlePerformerCardReveal}
           onProductCardReveal={handleProductCardReveal}
@@ -1951,7 +2243,7 @@ function App() {
           </button>
           <button onClick={() => playSlide()} aria-label="Replay animation"><RotateCcw/></button>
           <button onClick={togglePause} aria-label={paused ? "Play slideshow" : "Pause slideshow"}>{paused ? <Play fill="currentColor"/> : <Pause fill="currentColor"/>}</button>
-          <div className="slide-counter"><b>{String(index + 1).padStart(2, "0")}</b><span>/ 08</span></div>
+          <div className="slide-counter"><b>{String(index + 1).padStart(2, "0")}</b><span>/ {String(slideNames.length).padStart(2, "0")}</span></div>
           <button onClick={() => stageRef.current?.requestFullscreen()} aria-label="Fullscreen"><Expand/></button>
           {mode === "present" && <button onClick={() => { stopAllSounds(); setPaused(false); setMode("edit"); setInspector(true); }} aria-label="Editing mode"><Edit3/></button>}
           <button onClick={() => select(index + 1)} aria-label="Next slide"><ChevronRight/></button>
@@ -1959,9 +2251,11 @@ function App() {
         <div className="slide-dots">{slideNames.map((name, i) => <button className={i === index ? "active" : ""} onClick={() => select(i)} title={name} key={name}/>)}</div>
       </div>
     </div>
-    {mode === "edit" && inspector && <Inspector index={index} state={state} setState={setState} onClose={() => setInspector(false)} onSave={save} saving={saving}/>}
+    {mode === "edit" && inspector && <Inspector index={index} state={state} slideNames={slideNames} setState={setState} onClose={() => setInspector(false)} onSave={save} saving={saving}/>}
     {mode === "edit" && !inspector && <button className="open-inspector" onClick={() => setInspector(true)}><Settings2/><span>Edit slide</span></button>}
   </main>;
 }
 
 createRoot(document.getElementById("root")).render(<App/>);
+
+
