@@ -11,7 +11,7 @@ const INTRO_SOUND = `${ASSET}/sounds/Achivers.mp3`;
 const MONTHLY_SOUND = `${ASSET}/sounds/Monthlyperformerce.mp3`;
 const WEEKLY_SOUND = `${ASSET}/sounds/Weeklyperfrmer.mp3`;
 const TEAM_SOUND_SOURCES = Object.freeze({
-  smadhi: `${ASSET}/sounds/smadhi.mp3`,
+  samadhi: `${ASSET}/sounds/smadhi.mp3`,
   naduni: `${ASSET}/sounds/Naduni.mp3`,
   vindya: `${ASSET}/sounds/vindya.mp3`
 });
@@ -125,12 +125,12 @@ const starter = {
   weekly: ["Nimna", "Thilakshi", "kaveesha", "Thamara", "shehara"],
   teams: [
     {
-      id: "smadhi",
-      name: "TEAM SMADHI",
-      leaderName: "Smadhi",
+      id: "samadhi",
+      name: "TEAM SAMADHI",
+      leaderName: "Samadhi",
       leaderImage: "/leaders/smdhi.webp",
       members: ["Koshila", "Sandeepa", "Dinithi", "Shehara", "Wathsala", "Lakmi", "Kaweesha", "Thilakshi", "Dilsha"].map((name, index) => ({
-        id: `smadhi-${index + 1}`,
+        id: `samadhi-${index + 1}`,
         name,
         sales: "",
         confirmed: ""
@@ -527,7 +527,10 @@ function mergeSavedState(saved) {
     return Number.isFinite(numericValue) ? Math.max(0, Math.round(numericValue)) : "";
   };
   const teams = starter.teams.map(defaultTeam => {
-    const savedTeam = savedTeams.find(team => memberKey(team?.id) === memberKey(defaultTeam.id));
+    const savedTeam = savedTeams.find(team =>
+      memberKey(team?.id) === memberKey(defaultTeam.id) ||
+      memberKey(team?.name) === memberKey(defaultTeam.name)
+    );
     const savedTeamMembers = Array.isArray(savedTeam?.members) ? savedTeam.members : [];
 
     return {
