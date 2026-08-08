@@ -310,19 +310,30 @@ function validatePresentation(state) {
   const teams = state.teams || [];
   for (let teamRank = 0; teamRank < teams.length; teamRank += 1) {
     const team = teams[teamRank];
-    const values = (team.members || []).flatMap(member => [member.sales, member.confirmed]);
-    if (values.some(isMissingCount)) {
+    const salesValues = (team.members || []).map(member => member.sales);
+    const confirmedValues = (team.members || [])
+      .map(member => member.confirmed)
+      .filter(value => !isMissingCount(value));
+
+    if (salesValues.some(isMissingCount)) {
       return {
         slideIndex: SLIDE.TEAM_ONE + teamRank,
-        title: "TEAM COUNTS REQUIRED",
-        message: `${team.name}: Please enter Sales and Confirmed counts for every team member.`
+        title: "TEAM SALES REQUIRED",
+        message: `${team.name}: Please enter a Sales count for every team member. Confirmed counts are optional.`
       };
     }
-    if (values.some(value => !isValidCount(value))) {
+    if (salesValues.some(value => !isValidCount(value))) {
       return {
         slideIndex: SLIDE.TEAM_ONE + teamRank,
-        title: "INVALID TEAM COUNT",
-        message: `${team.name}: Please use valid whole numbers for Sales and Confirmed counts.`
+        title: "INVALID TEAM SALES",
+        message: `${team.name}: Please use valid whole numbers for every Sales count.`
+      };
+    }
+    if (confirmedValues.some(value => !isValidCount(value))) {
+      return {
+        slideIndex: SLIDE.TEAM_ONE + teamRank,
+        title: "INVALID CONFIRMED COUNT",
+        message: `${team.name}: Confirmed is optional, but any Confirmed value you enter must be a valid whole number.`
       };
     }
   }
@@ -1085,12 +1096,14 @@ function MissionSlide({ state, showResultCard }) {
 function TeamPerformanceSlide({ team }) {
   if (!team) return null;
 
+  const hasConfirmedData = (team.members || []).some(member => !isMissingCount(member.confirmed));
   const sortedMembers = (team.members || []).map((member, originalIndex) => ({ ...member, originalIndex })).sort((left, right) =>
     Number(right.sales || 0) - Number(left.sales || 0) ||
     Number(right.confirmed || 0) - Number(left.confirmed || 0) ||
     left.originalIndex - right.originalIndex
   );
   const displayCount = value => isMissingCount(value) ? "—" : Number(value).toLocaleString();
+  const countLayoutClass = hasConfirmedData ? "with-confirmed" : "sales-only";
 
   return <section className={`slide team-performance-slide team-${team.id}`}>
     <SparkField count={30} color="blue"/>
@@ -1108,26 +1121,30 @@ function TeamPerformanceSlide({ team }) {
           />
         </div>
         <h2>{team.leaderName}</h2>
-        <div className="team-total-grid">
+        <div className={`team-total-grid ${countLayoutClass}`}>
           <div><span>TOTAL SALES</span><strong>{team.totalSales.toLocaleString()}</strong></div>
-          <div><span>CONFIRMED</span><strong>{team.totalConfirmed.toLocaleString()}</strong></div>
+          {hasConfirmedData && <div><span>CONFIRMED</span><strong>{team.totalConfirmed.toLocaleString()}</strong></div>}
         </div>
       </aside>
 
       <div className="team-member-board reveal team-board-reveal">
-        <div className="team-member-head">
-          <span>RANK</span><span>TEAM MEMBER</span><span>SALES</span><span>CONFIRMED</span>
+        <div className={`team-member-head ${countLayoutClass}`}>
+          <span>RANK</span><span>TEAM MEMBER</span><span>SALES</span>
+          {hasConfirmedData && <span>CONFIRMED</span>}
         </div>
         <div className="team-member-list">
           {sortedMembers.map((member, memberIndex) => <article
-            className={`team-member-row ${memberIndex < 3 ? `top-${memberIndex + 1}` : ""}`}
+            className={`team-member-row ${countLayoutClass} ${memberIndex < 3 ? `top-${memberIndex + 1}` : ""}`}
             style={{ "--member-order": memberIndex }}
             key={member.id}
           >
             <b className="team-member-rank">{String(memberIndex + 1).padStart(2, "0")}</b>
             <div className="team-member-name"><i>{member.name.slice(0, 1)}</i><strong>{member.name}</strong></div>
             <div className="team-member-metric sales"><small>SALES</small><strong>{displayCount(member.sales)}</strong></div>
-            <div className="team-member-metric confirmed"><small>CONFIRMED</small><strong>{displayCount(member.confirmed)}</strong></div>
+            {hasConfirmedData && <div className="team-member-metric confirmed">
+              <small>CONFIRMED</small>
+              <strong>{displayCount(member.confirmed)}</strong>
+            </div>}
           </article>)}
         </div>
       </div>
@@ -1271,6 +1288,7 @@ function TeamEditor({ team, setState }) {
 
   const totalSales = team.members.reduce((total, member) => total + Number(member.sales || 0), 0);
   const totalConfirmed = team.members.reduce((total, member) => total + Number(member.confirmed || 0), 0);
+  const hasConfirmedData = team.members.some(member => !isMissingCount(member.confirmed));
 
   return <>
     <div className="inspector-section team-editor-summary">
@@ -1282,11 +1300,11 @@ function TeamEditor({ team, setState }) {
         </div>
         <div><strong>{team.leaderName}</strong></div>
       </div>
-      <div className="team-editor-totals">
+      <div className={`team-editor-totals ${hasConfirmedData ? "with-confirmed" : "sales-only"}`}>
         <div><span>Total Sales</span><strong>{totalSales.toLocaleString()}</strong></div>
-        <div><span>Confirmed</span><strong>{totalConfirmed.toLocaleString()}</strong></div>
+        {hasConfirmedData && <div><span>Confirmed</span><strong>{totalConfirmed.toLocaleString()}</strong></div>}
       </div>
-      <p className="helper">Enter both values manually. During presentation, teams and members are automatically shown from highest Sales to lowest Sales; Confirmed count is used when Sales values are equal.</p>
+      <p className="helper">Sales is required for every team member. Confirmed is optional. If no Confirmed values are entered, the presentation shows Sales only and removes the Confirmed total, heading, and full column. If at least one Confirmed value is entered, the Confirmed column appears and Confirmed is used to break Sales ties.</p>
     </div>
 
     <div className="inspector-section team-member-editor-section">

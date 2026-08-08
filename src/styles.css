@@ -3211,6 +3211,7 @@ button { cursor: pointer; }
   grid-template-columns: 1fr 1fr;
   gap: 4%;
 }
+.team-total-grid.sales-only { grid-template-columns: 1fr; }
 .team-total-grid > div {
   min-width: 0;
   padding: .5em .35em;
@@ -3250,6 +3251,10 @@ button { cursor: pointer; }
   display: grid;
   grid-template-columns: 9% minmax(0, 1fr) 20% 20%;
   align-items: center;
+}
+.team-member-head.sales-only,
+.team-member-row.sales-only {
+  grid-template-columns: 9% minmax(0, 1fr) 28%;
 }
 .team-member-head {
   flex: 0 0 7.2%;
@@ -3391,6 +3396,7 @@ button { cursor: pointer; }
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+.team-editor-totals.sales-only { grid-template-columns: 1fr; }
 .team-editor-totals > div {
   padding: 10px;
   border: 1px solid #23528d;
@@ -3475,5 +3481,7 @@ button { cursor: pointer; }
   .team-performance-layout { grid-template-columns: minmax(190px, 34%) minmax(0, 1fr); gap: 1.6%; }
   .team-member-head,
   .team-member-row { grid-template-columns: 10% minmax(0, 1fr) 21% 22%; }
+  .team-member-head.sales-only,
+  .team-member-row.sales-only { grid-template-columns: 10% minmax(0, 1fr) 29%; }
 }
 
