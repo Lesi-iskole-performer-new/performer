@@ -138,9 +138,9 @@ const starter = {
     },
     {
       id: "naduni",
-      name: "TEAM NADUNI",
-      leaderName: "Naduni",
-      leaderImage: "/leaders/naduni.webp",
+      name: "TEAM",
+      leaderName: "",
+      leaderImage: "",
       members: ["Thamara", "Oshadhi", "Kavindaya", "Dulari", "Chamodhi", "Wishmi", "Shalini", "Sithmi", "Chamathka"].map((name, index) => ({
         id: `naduni-${index + 1}`,
         name,
@@ -1096,6 +1096,7 @@ function MissionSlide({ state, showResultCard }) {
 function TeamPerformanceSlide({ team }) {
   if (!team) return null;
 
+  const isNaduni = team.id === "naduni";
   const hasConfirmedData = (team.members || []).some(member => !isMissingCount(member.confirmed));
   const sortedMembers = (team.members || []).map((member, originalIndex) => ({ ...member, originalIndex })).sort((left, right) =>
     Number(right.sales || 0) - Number(left.sales || 0) ||
@@ -1103,15 +1104,15 @@ function TeamPerformanceSlide({ team }) {
     left.originalIndex - right.originalIndex
   );
   const displayCount = value => isMissingCount(value) ? "—" : Number(value).toLocaleString();
-  const countLayoutClass = hasConfirmedData ? "with-confirmed" : "sales-only";
+  const countLayoutClass = isNaduni || hasConfirmedData ? "with-confirmed" : "sales-only";
 
   return <section className={`slide team-performance-slide team-${team.id}`}>
     <SparkField count={30} color="blue"/>
     <div className="team-performance-glow"/>
     <GoldTitle eyebrow="SALES TEAM PERFORMANCE" compact>{team.name}</GoldTitle>
 
-    <div className="team-performance-layout">
-      <aside className="team-leader-card reveal team-leader-reveal">
+    <div className={`team-performance-layout ${isNaduni ? "team-table-only-layout" : ""}`}>
+      {!isNaduni && <aside className="team-leader-card reveal team-leader-reveal">
         <div className="team-leader-photo">
           <span>{String(team.leaderName || team.name).slice(0, 1)}</span>
           <img
@@ -1125,12 +1126,12 @@ function TeamPerformanceSlide({ team }) {
           <div><span>TOTAL SALES</span><strong>{team.totalSales.toLocaleString()}</strong></div>
           {hasConfirmedData && <div><span>CONFIRMED</span><strong>{team.totalConfirmed.toLocaleString()}</strong></div>}
         </div>
-      </aside>
+      </aside>}
 
       <div className="team-member-board reveal team-board-reveal">
         <div className={`team-member-head ${countLayoutClass}`}>
           <span>RANK</span><span>TEAM MEMBER</span><span>SALES</span>
-          {hasConfirmedData && <span>CONFIRMED</span>}
+          {(isNaduni || hasConfirmedData) && <span>CONFIRMED</span>}
         </div>
         <div className="team-member-list">
           {sortedMembers.map((member, memberIndex) => <article
@@ -1141,12 +1142,16 @@ function TeamPerformanceSlide({ team }) {
             <b className="team-member-rank">{String(memberIndex + 1).padStart(2, "0")}</b>
             <div className="team-member-name"><i>{member.name.slice(0, 1)}</i><strong>{member.name}</strong></div>
             <div className="team-member-metric sales"><small>SALES</small><strong>{displayCount(member.sales)}</strong></div>
-            {hasConfirmedData && <div className="team-member-metric confirmed">
+            {(isNaduni || hasConfirmedData) && <div className="team-member-metric confirmed">
               <small>CONFIRMED</small>
               <strong>{displayCount(member.confirmed)}</strong>
             </div>}
           </article>)}
         </div>
+        {isNaduni && <div className="team-performance-totals">
+          <div><span>TOTAL SALES</span><strong>{team.totalSales.toLocaleString()}</strong></div>
+          <div><span>TOTAL CONFIRMED</span><strong>{team.totalConfirmed.toLocaleString()}</strong></div>
+        </div>}
       </div>
     </div>
 
@@ -1293,16 +1298,16 @@ function TeamEditor({ team, setState }) {
   return <>
     <div className="inspector-section team-editor-summary">
       <div className="section-title"><span>{team.name}</span><small>Manual team counts</small></div>
-      <div className="team-editor-leader">
+      {team.id !== "naduni" && <div className="team-editor-leader">
         <div className="team-editor-leader-image">
           <span>{team.leaderName.slice(0, 1)}</span>
           <img src={team.leaderImage} alt={team.leaderName} onError={event => { event.currentTarget.style.display = "none"; }}/>
         </div>
         <div><strong>{team.leaderName}</strong></div>
-      </div>
-      <div className={`team-editor-totals ${hasConfirmedData ? "with-confirmed" : "sales-only"}`}>
+      </div>}
+      <div className={`team-editor-totals ${team.id === "naduni" || hasConfirmedData ? "with-confirmed" : "sales-only"}`}>
         <div><span>Total Sales</span><strong>{totalSales.toLocaleString()}</strong></div>
-        {hasConfirmedData && <div><span>Confirmed</span><strong>{totalConfirmed.toLocaleString()}</strong></div>}
+        {(team.id === "naduni" || hasConfirmedData) && <div><span>Total Confirmed</span><strong>{totalConfirmed.toLocaleString()}</strong></div>}
       </div>
       <p className="helper">Sales is required for every team member. Confirmed is optional. If no Confirmed values are entered, the presentation shows Sales only and removes the Confirmed total, heading, and full column. If at least one Confirmed value is entered, the Confirmed column appears and Confirmed is used to break Sales ties.</p>
     </div>

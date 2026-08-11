@@ -2519,7 +2519,7 @@ button { cursor: pointer; }
   min-width: 0;
   overflow: hidden;
   display: grid;
-  grid-template-columns: clamp(150px, 14vw, 240px) minmax(0,1fr) clamp(30px, 3vw, 48px);
+  grid-template-columns: clamp(270px, 14vw, 240px) minmax(0,1fr) clamp(30px, 3vw, 48px);
   align-items: center;
   justify-content: center;
   gap: clamp(5px, .6vw, 10px);
@@ -2587,7 +2587,7 @@ button { cursor: pointer; }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(12px, 1.2vw, 22px);
+  gap: clamp(12px, 1.2vw, 20px);
   text-align: center;
 }
 .flight-pass-data h2 {
@@ -2670,7 +2670,7 @@ button { cursor: pointer; }
   --spotlight: #ff9a44;
   --spotlightSoft: #ffd4a8;
   position: absolute;
-  width: min(76%, 1050px);
+  width: min(78%, 1050px);
   height: min(72%, 470px);
   padding: clamp(12px, 1.4vw, 23px);
   display: grid;
@@ -3235,6 +3235,45 @@ button { cursor: pointer; }
   font-size: clamp(18px, 2vw, 36px);
   line-height: 1;
 }
+.team-performance-layout.team-table-only-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+.team-performance-slide.team-naduni .team-member-board {
+  width: 100%;
+}
+.team-performance-totals {
+  margin-top: 1.1%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2%;
+  flex: 0 0 auto;
+}
+.team-performance-totals > div {
+  min-width: 0;
+  padding: .55em .7em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #2b69b9;
+  border-radius: clamp(7px, .7vw, 12px);
+  background: linear-gradient(135deg, #071630e8, #050b18e8);
+}
+.team-performance-totals span {
+  color: #8eb7e9;
+  font-size: clamp(6px, .58vw, 11px);
+  font-weight: 900;
+  letter-spacing: .1em;
+}
+.team-performance-totals strong {
+  color: #ffd34e;
+  font-family: Oswald, sans-serif;
+  font-size: clamp(16px, 1.8vw, 31px);
+  line-height: 1;
+}
+.team-performance-totals > div:last-child strong { color: #63dbff; }
+.team-editor-summary .team-editor-totals.with-confirmed { grid-template-columns: 1fr 1fr; }
+
 .team-member-board {
   min-width: 0;
   min-height: 0;
@@ -3483,5 +3522,6 @@ button { cursor: pointer; }
   .team-member-row { grid-template-columns: 10% minmax(0, 1fr) 21% 22%; }
   .team-member-head.sales-only,
   .team-member-row.sales-only { grid-template-columns: 10% minmax(0, 1fr) 29%; }
+  .team-performance-layout.team-table-only-layout { grid-template-columns: minmax(0, 1fr); }
 }
 
