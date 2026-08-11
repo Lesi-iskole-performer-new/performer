@@ -3248,6 +3248,7 @@ button { cursor: pointer; }
   gap: 1.2%;
   flex: 0 0 auto;
 }
+.team-performance-totals.sales-only { grid-template-columns: 1fr; }
 .team-performance-totals > div {
   min-width: 0;
   padding: .55em .7em;
